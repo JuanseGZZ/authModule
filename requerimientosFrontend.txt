@@ -1,0 +1,9 @@
+
+- la estructura de carpetas tiene que ser asi{
+    + para frontend:  
+    la logica en frontend es cada pantalla o archivo html tiene su carpeta, dentro de ella va a tener las carpetas  producto, stock, videos.... cualquier cosa que se pueda dividir como modulo o funcionalidad, y dentro de ese     modulo va a tener los siguientes archivos: events, api, service, render, models, utils. 
+    la idea es, events es el iniciador de todo, porque ahi van a estar todos los listeners habidos, para que pase algo  tiene que ocurrir un evento, por lo tanto ahi estan todos los listeners, de events se llama a api, que puede ser     un simple pasa manos a service, o puede llamar al back y luego darle eso al service, pero siempre events llama a    api no se saltea, de api va a service entregandole o no cosas, y de service va a models a hacer o no algo, o va a  utils, y luego va a render que es eso, renderizar cosas dinamicas, quizas un posteo, entonces lo pidio api al    back, se lo dio a service, service lo cargo en un model, y le paso ese model al render para que cargue el html con     la devida info de ese post. 
+    Toda api tiene por lo menos un evento que la llama, asi como todo service tiene al menos un api que la llama.
+    ejemplo: 
+    boton buscar, tiene un event listener que llama a api que hace un fetch y lo que trae se lo pasa a un service que   lo carga en un model(class), quizas producto por ejemplo, y luego con ese arry de productos se lo pasa a una func     render que recibe el array y lo renderiza o carga en el div que tambien le paso a lo largo de las llamadas el   boton.
+}
