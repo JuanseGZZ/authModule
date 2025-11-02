@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Auth Module Tester</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    body { margin: 24px; background:#0b0e11; color:#e5e7eb; }
+    h1 { margin: 0 0 16px; font-size: 22px; }
+    h2 { margin: 24px 0 8px; font-size: 18px; }
+    .card { background: #11151a; border: 1px solid #1f2937; border-radius: 12px; padding: 16px; margin: 12px 0; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    input, button, select { background:#0f1318; color:#e5e7eb; border:1px solid #263040; padding:8px 10px; border-radius:8px; }
+    input { min-width: 260px; }
+    button { cursor: pointer; }
+    button.primary { background:#2563eb; border-color:#2563eb; }
+    button.warn { background:#7c2d12; border-color:#7c2d12; }
+    code, pre { background:#0f1318; border:1px solid #263040; border-radius:8px; padding:8px; color:#e2e8f0; }
+    .muted { color:#94a3b8; font-size: 13px; }
+    .ok { color:#10b981; }
+    .err { color:#ef4444; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:12px; }
+  </style>
+</head>
+<body>
+  <h1>Auth Module Tester</h1>
+
+  <div class="card">
+    <h2>Config</h2>
+    <div class="grid">
+      <div>
+        <label>Base URL</label><br/>
+        <input id="baseUrl" value="http://127.0.0.1:8000" />
+      </div>
+      <div>
+        <label>Demo Email</label><br/>
+        <input id="email" value="demo@example.com" />
+      </div>
+      <div>
+        <label>Demo Password</label><br/>
+        <input id="password" value="demo123" type="password" />
+      </div>
+    </div>
+    <p class="muted">Tip: ya dejé un usuario <code>demo@example.com/demo123</code> en el seed. Si querés, probá <b>register</b> con otro email.</p>
+  </div>
+
+  <div class="card">
+    <h2>Estado</h2>
+    <div class="row">
+      <button onclick="copyAccess()" title="Copiar access a portapapeles">Copiar Access</button>
+      <button onclick="clearAccess()" class="warn" title="Borrar access en memoria">Limpiar Access</button>
+    </div>
+    <p>Access token (memoria): <span id="hasAccess" class="muted">(vacío)</span></p>
+  </div>
+
+  <div class="card">
+    <h2>JWKS</h2>
+    <div class="row">
+      <button class="primary" onclick="getJWKS()">GET /.well-known/jwks.json</button>
+    </div>
+    <pre id="outJWKS"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Register</h2>
+    <div class="row">
+      <input id="regEmail" placeholder="email" value="newuser+1@example.com" />
+      <input id="regPass" placeholder="password" value="Passw0rd!" type="password" />
+      <button class="primary" onclick="register()">POST /auth/register</button>
+    </div>
+    <pre id="outRegister"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Login</h2>
+    <div class="row">
+      <button class="primary" onclick="login()">POST /auth/login</button>
+      <button onclick="rateLimitLogin()">Rate limit x6 (esperado 429)</button>
+    </div>
+    <pre id="outLogin"></pre>
+    <pre id="outRate"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Me (protegido)</h2>
+    <div class="row">
+      <button class="primary" onclick="me()">GET /auth/me</button>
+    </div>
+    <pre id="outMe"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Refresh (cookie HttpOnly)</h2>
+    <div class="row">
+      <button class="primary" onclick="refresh()">POST /auth/token/refresh</button>
+    </div>
+    <pre id="outRefresh"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Logout</h2>
+    <div class="row">
+      <button class="primary" onclick="logout()">POST /auth/logout</button>
+    </div>
+    <pre id="outLogout"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Logs</h2>
+    <pre id="log"></pre>
+  </div>
+
+<script>
+let ACCESS = null;
+
+function println(s, id='log') {
+  const el = document.getElementById(id);
+  el.textContent += (typeof s === 'string' ? s : JSON.stringify(s, null, 2)) + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+function setOut(id, data) {
+  document.getElementById(id).textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+}
+function base() { return document.getElementById('baseUrl').value.replace(/\/+$/,''); }
+function headers(withAuth=false) {
+  const h = { 'Content-Type': 'application/json' };
+  if (withAuth && ACCESS) h['Authorization'] = 'Bearer ' + ACCESS;
+  return h;
+}
+function setAccess(token) {
+  ACCESS = token || null;
+  document.getElementById('hasAccess').textContent = ACCESS ? 'OK (en memoria)' : '(vacío)';
+  document.getElementById('hasAccess').className = ACCESS ? 'ok' : 'muted';
+}
+function copyAccess() {
+  if (!ACCESS) { alert('No hay access en memoria'); return; }
+  navigator.clipboard.writeText(ACCESS);
+  println('Access copiado al portapapeles.');
+}
+function clearAccess() { setAccess(null); println('Access limpiado.'); }
+
+async function getJWKS() {
+  setOut('outJWKS','');
+  try {
+    const res = await fetch(base() + '/.well-known/jwks.json', { credentials: 'include' });
+    const j = await res.json();
+    setOut('outJWKS', j);
+    println('[JWKS] OK');
+  } catch(e) {
+    setOut('outJWKS', String(e));
+    println('[JWKS] ERROR: ' + e);
+  }
+}
+
+async function register() {
+  setOut('outRegister','');
+  const email = document.getElementById('regEmail').value;
+  const password = document.getElementById('regPass').value;
+  try {
+    const res = await fetch(base() + '/auth/register', {
+      method: 'POST',
+      credentials: 'include',
+      headers: headers(false),
+      body: JSON.stringify({ email, password })
+    });
+    const j = await res.json();
+    setOut('outRegister', j);
+    if (res.ok && j.access_token) {
+      setAccess(j.access_token);
+      println('[REGISTER] OK -> access en memoria; refresh en cookie (HttpOnly)');
+    } else {
+      println('[REGISTER] ERROR: ' + JSON.stringify(j));
+    }
+  } catch(e) {
+    setOut('outRegister', String(e));
+  }
+}
+
+async function login() {
+  setOut('outLogin','');
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  try {
+    const res = await fetch(base() + '/auth/login', {
+      method: 'POST',
+      credentials: 'include',
+      headers: headers(false),
+      body: JSON.stringify({ email, password })
+    });
+    const j = await res.json();
+    setOut('outLogin', j);
+    if (res.ok && j.access_token) {
+      setAccess(j.access_token);
+      println('[LOGIN] OK -> access en memoria; refresh en cookie (HttpOnly)');
+    } else {
+      println('[LOGIN] ERROR: ' + JSON.stringify(j));
+    }
+  } catch(e) {
+    setOut('outLogin', String(e));
+  }
+}
+
+async function me() {
+  setOut('outMe','');
+  try {
+    const res = await fetch(base() + '/auth/me', {
+      method: 'GET',
+      credentials: 'include',
+      headers: headers(true),
+    });
+    const j = await res.json();
+    setOut('outMe', j);
+    println(res.ok ? '[ME] OK' : '[ME] ERROR');
+  } catch(e) {
+    setOut('outMe', String(e));
+  }
+}
+
+async function refresh() {
+  setOut('outRefresh','');
+  try {
+    const res = await fetch(base() + '/auth/token/refresh', {
+      method: 'POST',
+      credentials: 'include',
+      headers: headers(false),
+    });
+    const j = await res.json();
+    setOut('outRefresh', j);
+    if (res.ok && j.access_token) {
+      setAccess(j.access_token);
+      println('[REFRESH] OK -> nuevo access en memoria; refresh rotado en cookie');
+    } else {
+      println('[REFRESH] ERROR: ' + JSON.stringify(j));
+    }
+  } catch(e) {
+    setOut('outRefresh', String(e));
+  }
+}
+
+async function logout() {
+  setOut('outLogout','');
+  try {
+    const res = await fetch(base() + '/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+      headers: headers(false),
+    });
+    const j = await res.json();
+    setOut('outLogout', j);
+    setAccess(null);
+    println('[LOGOUT] Hecho (cookie refresh eliminada si estaba presente).');
+  } catch(e) {
+    setOut('outLogout', String(e));
+  }
+}
+
+async function rateLimitLogin() {
+  setOut('outRate','');
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  let results = [];
+  for (let i=0;i<6;i++) {
+    try {
+      const res = await fetch(base() + '/auth/login', {
+        method: 'POST',
+        credentials: 'include',
+        headers: headers(false),
+        body: JSON.stringify({ email, password })
+      });
+      let txt;
+      try { txt = await res.json(); } catch { txt = await res.text(); }
+      results.push({ i, status: res.status, body: txt });
+      await new Promise(r => setTimeout(r, 150)); // pequeño gap
+    } catch(e) {
+      results.push({ i, error: String(e) });
+    }
+  }
+  setOut('outRate', results);
+  println('[RATE] Enviadas 6 peticiones a /auth/login (esperado >=1 con 429).');
+}
+</script>
+</body>
+</html>
