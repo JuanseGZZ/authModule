@@ -1,0 +1,2 @@
+hacer modulo y framework para usarlo.
+es decir un framework que haga llamadas a api,

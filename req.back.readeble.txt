@@ -1,0 +1,200 @@
+project: auth-mvp
+version: 1.0
+goal: "Módulo de autenticación con JWT (access) + refresh tokens con rotación, listo para que otro LLM implemente."
+target_stack:
+  framework: "FastAPI (Python 3.11+)"
+  jwt:
+    alg: "HS256 (MVP; migrable a RS256)"
+    claims_required: [sub, iss, aud, iat, exp, jti]
+  password_hash: "bcrypt"
+  refresh_storage: "solo hash (sha256) en DB"
+  timezone: "UTC"
+
+env:
+  AUTH_JWT_SECRET: "<32+ bytes>"
+  AUTH_ACCESS_TTL_MIN: 15
+  AUTH_REFRESH_TTL_DAYS: 14
+  AUTH_BCRYPT_ROUNDS: 12
+  AUTH_ISS: "https://tu-api"
+  AUTH_AUD: "tu-spa"
+  DATABASE_URL: "postgresql+asyncpg://user:pass@host:5432/db"
+  RATE_LIMIT_LOGIN_PER_IP_PER_15M: 50
+  RATE_LIMIT_REFRESH_PER_IP_PER_15M: 200
+
+non_functional:
+  - "Aplicar OWASP ASVS básico (política de contraseña, manejo de errores genéricos)."
+  - "Logs de auditoría para login/refresh/logout."
+  - "Tests unitarios, de integración y E2E (ver acceptance_tests)."
+  - "Timestamps y validaciones consistentes en UTC."
+  - "Nunca persistir refresh token en claro."
+
+data_model:
+  users:
+    id: "uuid, pk"
+    email: "citext, unique, indexed, case-insensitive"
+    password_hash: "text (bcrypt)"
+    email_verified: "boolean, default false"
+    created_at: "timestamptz, default now()"
+    updated_at: "timestamptz, default now()"
+  refresh_tokens:
+    id: "uuid, pk"
+    user_id: "uuid fk -> users(id) on delete cascade"
+    token_hash: "bytea (sha256 del refresh raw), unique"
+    issued_at: "timestamptz, default now()"
+    expires_at: "timestamptz > issued_at"
+    revoked_at: "timestamptz, nullable"
+    parent_id: "uuid fk -> refresh_tokens(id), nullable (rotación)"
+    user_agent: "text, nullable"
+    ip: "inet, nullable"
+  audit_log_optional:
+    id: "bigserial, pk"
+    event: "text (auth.login.success|failure, token.refresh.success|reuse_detected, auth.logout)"
+    user_id: "uuid fk -> users(id), nullable"
+    jti: "text, nullable"
+    refresh_id: "uuid fk -> refresh_tokens(id), nullable"
+    ip: "inet, nullable"
+    user_agent: "text, nullable"
+    created_at: "timestamptz, default now()"
+
+security_rules:
+  access_ttl_minutes: 15
+  refresh_ttl_days: 14
+  rotate_refresh_on_use: true
+  revoke_on_logout: true
+  validate_jwt_claims: [signature, iss, aud, exp, iat, jti, sub]
+  transport:
+    access_token: "Authorization: Bearer <jwt>"
+    refresh_token: "cookie httpOnly Secure SameSite=Lax|Strict o body JSON"
+  rate_limit:
+    login: "RATE_LIMIT_LOGIN_PER_IP_PER_15M por IP/15min"
+    refresh: "RATE_LIMIT_REFRESH_PER_IP_PER_15M por IP/15min"
+
+endpoints:
+  - method: POST
+    path: /auth/register
+    auth: public
+    request: { email: string, password: string }
+    responses:
+      "201": { id: uuid, email: string }
+      "409": { error: { code: CONFLICT_EMAIL_TAKEN, message: string } }
+      "400": { error: { code: VALIDATION_ERROR, message: string } }
+    effects:
+      - "Crear usuario con email único; guardar password_hash (bcrypt)."
+
+  - method: POST
+    path: /auth/login
+    auth: public
+    request: { email: string, password: string }
+    responses:
+      "200": { access_token: jwt, refresh_token: opaque, token_type: "Bearer", expires_in: 900 }
+      "401": { error: { code: AUTH_INVALID_CREDENTIALS, message: string } }
+      "429": { error: { code: AUTH_RATE_LIMIT, message: string } }
+    effects:
+      - "Validar credenciales sin filtrar existencia del email."
+      - "Emitir access (15m) con claims requeridas."
+      - "Emitir refresh opaco (14d); persistir sha256 como token_hash."
+
+  - method: POST
+    path: /auth/token/refresh
+    auth: public
+    request: { refresh_token?: string }  # si no viene en cookie httpOnly
+    responses:
+      "200": { access_token: jwt, refresh_token: opaque, expires_in: 900 }
+      "401":
+        - { error: { code: AUTH_REFRESH_NOT_FOUND, message: string } }
+        - { error: { code: AUTH_TOKEN_REVOKED, message: string } }
+        - { error: { code: AUTH_TOKEN_EXPIRED, message: string } }
+      "429": { error: { code: AUTH_RATE_LIMIT, message: string } }
+    effects:
+      - "Buscar refresh por hash; validar no expirado/no revocado."
+      - "Rotación: revocar el refresh usado; crear uno nuevo (parent_id = anterior)."
+      - "Emitir nuevo access; actualizar cookie si corresponde."
+
+  - method: POST
+    path: /auth/logout
+    auth: access_required
+    request: { refresh_token?: string }  # o solo cookie
+    responses:
+      "204": {}
+    effects:
+      - "Revocar el refresh correspondiente (idempotente)."
+      - "Eliminar cookie httpOnly si se usa."
+
+  - method: GET
+    path: /auth/me
+    auth: access_required
+    request_headers: { Authorization: "Bearer <access>" }
+    responses:
+      "200": { id: uuid, email: string, roles: [string] }
+      "401": { error: { code: AUTH_TOKEN_EXPIRED, message: string } }
+
+errors:
+  schema: { error: { code: string, message: string } }
+  codes:
+    - AUTH_INVALID_CREDENTIALS
+    - AUTH_TOKEN_EXPIRED
+    - AUTH_TOKEN_REVOKED
+    - AUTH_REFRESH_NOT_FOUND
+    - AUTH_RATE_LIMIT
+    - VALIDATION_ERROR
+    - CONFLICT_EMAIL_TAKEN
+
+audit_logging:
+  events:
+    - auth.login.success
+    - auth.login.failure
+    - token.refresh.success
+    - token.refresh.reuse_detected
+    - auth.logout
+  fields: [user_id, ip, user_agent, jti, refresh_id]
+
+acceptance_tests:
+  - name: "Register OK"
+    given: "email nuevo y password válidos"
+    when: "POST /auth/register"
+    then: '201 con body { id, email }'
+
+  - name: "Register duplicado"
+    given: "email ya existente"
+    when: "POST /auth/register"
+    then: "409 CONFLICT_EMAIL_TAKEN"
+
+  - name: "Login OK"
+    given: "credenciales válidas"
+    when: "POST /auth/login"
+    then: "200 con access (15m) + refresh (14d)"
+
+  - name: "Login inválido"
+    given: "credenciales inválidas"
+    when: "POST /auth/login"
+    then: "401 AUTH_INVALID_CREDENTIALS (sin filtrar si email existe)"
+
+  - name: "/auth/me con access válido"
+    given: "access válido no expirado"
+    when: "GET /auth/me"
+    then: "200 con { id, email } (y roles si aplica)"
+
+  - name: "/auth/me con access expirado"
+    given: "access expirado"
+    when: "GET /auth/me"
+    then: "401 AUTH_TOKEN_EXPIRED"
+
+  - name: "Refresh OK (rotación)"
+    given: "refresh válido y no revocado"
+    when: "POST /auth/token/refresh"
+    then: "200 con nuevo access y nuevo refresh; el viejo queda revocado"
+
+  - name: "Refresh reusado"
+    given: "refresh ya rotado/revocado"
+    when: "POST /auth/token/refresh"
+    then: "401 AUTH_TOKEN_REVOKED"
+
+  - name: "Logout"
+    given: "usuario autenticado con refresh asociado"
+    when: "POST /auth/logout"
+    then: "204; refresh revocado; futuros refresh con ese token ⇒ 401"
+
+  - name: "Rate limit"
+    given: ">N intentos rápidos de login o refresh en 15m por IP"
+    when: "invocar nuevamente"
+    then: "429 AUTH_RATE_LIMIT"

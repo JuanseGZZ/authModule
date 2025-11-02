@@ -1,0 +1,16 @@
+*{box-sizing:border-box}body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;background:#0b1020;color:#e7e9ee}
+.topbar{background:#141a35;position:sticky;top:0;padding:.5rem;border-bottom:1px solid #1f274d}
+.nav{display:flex;gap:.5rem;align-items:center}
+.nav button{background:#1f274d;color:#e7e9ee;border:1px solid #2a3466;border-radius:.6rem;padding:.5rem .8rem;cursor:pointer}
+.nav button:hover{filter:brightness(1.1)}
+.container{max-width:860px;margin:2rem auto;padding:0 1rem}
+.view[hidden]{display:none}
+.card{background:#121a3a;border:1px solid #26306b;border-radius:12px;padding:1rem}
+label{display:block;margin:.6rem 0}
+input[type="email"],input[type="password"]{width:100%;padding:.6rem;background:#0a1334;color:#e7e9ee;border:1px solid #27326f;border-radius:.5rem}
+button[type="submit"], .view button{background:#2a5bd7;border:1px solid #305fe0;color:#fff;border-radius:.6rem;padding:.6rem .9rem;cursor:pointer}
+.checkbox{display:flex;align-items:center;gap:.5rem}
+.msg{min-height:1.2rem}
+.toast{position:fixed;right:1rem;bottom:1rem;min-width:240px;background:#101737;color:#e7e9ee;border:1px solid #27326f;padding:.75rem 1rem;border-radius:.75rem;display:none}
+.toast.show{display:block}
+.spacer{flex:1}
