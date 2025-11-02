@@ -1,0 +1,104 @@
+
+project: auth-mvp
+version: 3.1
+goal: "Auth module con JWT (JWS RS/ES) + JWE nested, refresh opaco con rotación, JWKS para 'sig' y 'enc', y soporte de cifrado desde el front (front-side encryption) con SDK JS."
+
+front_encryption:
+  enabled: true
+  purpose: "Cifrar payloads sensibles desde el front antes de enviarlos (defensa en profundidad; no reemplaza TLS)."
+  jwks_use: "enc_front"        # claves públicas específicas para front-side encryption
+  km_alg: "RSA-OAEP-256"       # gestión de clave de sesión (CEK)
+  content_enc: "A256GCM"       # cifrado del contenido
+  targets:
+    - path: /auth/register
+      method: POST
+      required: false
+    - path: /auth/login
+      method: POST
+      required: false
+
+api:
+  - method: GET
+    path: /.well-known/jwks.json
+    auth: public
+    responses:
+      "200":
+        { keys: [ { kty: string, kid: string, alg: string, use: "sig"|"enc"|"enc_front",
+                    n?: string, e?: string, crv?: string, x?: string, y?: string } ] }
+    notes:
+      - "Publica claves 'sig' (firma), 'enc' (JWE tokens) y 'enc_front' (cifrado cliente)."
+
+  - method: POST
+    path: /auth/register
+    auth: public
+    request:
+      oneOf:
+        - { email: string, password: string }
+        - { __front_enc__: { kid: string, alg: "RSA-OAEP-256", enc: "A256GCM",
+                             cek: string, iv: string, ct: string, aad?: string } }
+    responses:
+      "201": { id: uuid, email: string, email_verified: boolean }
+      "400": { error: { code: AUTH_BAD_REQUEST, message: string } }
+
+  - method: POST
+    path: /auth/login
+    auth: public
+    request:
+      oneOf:
+        - { email: string, password: string }
+        - { __front_enc__: { kid: string, alg: "RSA-OAEP-256", enc: "A256GCM",
+                             cek: string, iv: string, ct: string, aad?: string } }
+    responses:
+      "200": { access_token: string, refresh_token?: string, token_type: "Bearer", expires_in: 900 }
+      "401": { error: { code: AUTH_INVALID_CREDENTIALS, message: string } }
+
+sdk_contracts:
+  js_front_sdk:
+    module_name: "@auth-mvp/sdk"
+    functions:
+      - name: cargarDominio
+        args: [ baseUrl ]
+        returns: void
+      - name: registrarse
+        args: [ { email, password, cifrar?: boolean } ]
+        returns: { id, email, email_verified }
+      - name: loguearse
+        args: [ { email, password, cifrar?: boolean } ]
+        returns: { access_token, refresh_token?, token_type, expires_in }
+      - name: refrescar
+        args: [ ]
+        returns: { access_token, refresh_token?, token_type, expires_in }
+      - name: encriptarDatos
+        args: [ objetoPlano ]
+        returns: { __front_enc__: { kid, alg, enc, cek, iv, ct, aad? } }
+    storage_rules:
+      access_token: "Mantener en memoria; nunca localStorage."
+      refresh_token: "Cookie httpOnly si web; devolver por body si app nativa."
+    jwks:
+      use: "enc_front"
+      discovery: "GET /.well-known/jwks.json (cache con TTL configurable)"
+  py_back_helpers:
+    package: "auth_mvp_crypto"
+    functions:
+      - name: decrypt_front_payload
+        args: [ front_enc_obj ]
+        returns: dict
+      - name: require_and_decrypt_dependency
+        args: []
+        returns: "FastAPI dependency que decifra si viene __front_enc__"
+
+impl_contracts:
+  KeyStoreFrontEnc:
+    methods:
+      - name: get_active_front_encrypter
+        out: { kid: string, alg: "RSA-OAEP-256", public_key_pem: string }
+      - name: get_public_jwks_enc_front
+        out: { keys: array }     # use="enc_front"
+      - name: rotate_front_enc_keys
+        out: { new_kid: string }
+
+security_notes:
+  - "No mezclar claves: 'sig', 'enc' (tokens) y 'enc_front' (payloads de cliente) rotan por separado."
+  - "Front-side encryption no reemplaza TLS ni resuelve XSS; valida y sanea en el back."
+  - "Nunca loggear payloads descifrados."
+  - "Si 'required: true' en un endpoint, rechazar requests sin __front_enc__."

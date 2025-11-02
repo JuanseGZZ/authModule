@@ -1,0 +1,11 @@
++ para backend: 
+- api: aca adentro van a haber un archivo por contexto de api, ejemplo: producto(subir, pausar, eliminar...) otro archivo ejemplo stock(cargar, editar, eliminar....) por lo tanto va a haber muchos archivos representantes y dentro van a estar todos los path, estos tambien van a importar service para llamar a service y retornar lo que le responda service.
+- service: aca va a haber archivos como en api, pero service de la aplicaccion, toda la logica de negocio, cada service va a importar a models, a db, y a utils.
+- models: van a estar solo las entidades representativas de las tablad de la base de datos, a modo de uml. 
+- db: aca van a estar las funciones que traigan las filas que luego van a ser cargadas en los models  para interactuar. 
+- utils: funciones basicas como sacar porsentaje o sacsr iba esas cosas que son utiles.
+
+Por lo tanto el flujo seria, viene una request por ejemplo para producto,
+api recibe la request, api ejecuta una funcion de service, service ejecuta una funcion de db y la guarda en un array de objetos que usa de models luego usa o no alguna funcion de utils y luego guarda cambios o responde o ambas. 
+api.producto -> service.producto -> db.producto
+-> service.producto -> models.product-> service.producto -> utils.producto o directamente api.producto.

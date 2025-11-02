@@ -1,0 +1,395 @@
+
+project: auth-mvp
+version: 1.3
+goal: "Módulo de autenticación con JWT access + refresh opaco, firma JWS asimétrica (RS256/ES256) con JWKS/ kid y cifrado JWE opcional (nested), listo para implementación."
+
+target_stack:
+  framework: "FastAPI (Python 3.11+)"
+  crypto:
+    # Firma JWS con claves asimétricas y JWKS
+    jws_algs: ["RS256", "ES256"]
+    default_alg: "RS256"
+    keystore:
+      provider: "KMS|FILE"              # prod: KMS; dev: FILE
+      active_kid: "sig-2025-11-01"      # clave activa para firmar
+      rotation_policy:
+        schedule: "P90D"                # rotación cada 90 días
+        overlap_grace: "P14D"           # convivencia old+new 14 días
+      cache_verifiers_ttl: "PT10M"
+    pwd_hash: "bcrypt"                  # prod: preferir Argon2id (ver hardening)
+    refresh_hash: "sha256"
+  jwt:
+    iss: "auth-mvp"
+    aud: "auth-mvp-clients"
+    alg: "RS256"
+    header_requirements:
+      kid: true
+    clock_skew_sec: 60
+    required_claims: [sub, iss, aud, iat, exp, jti]
+    optional_claims: [nbf, scope]
+  timezone: "UTC"
+
+crypto_policies:
+  token_modes:
+    access_token_mode: "nested"   # "jws" | "nested" (JWS dentro y JWE afuera)
+    refresh_token_mode: "jws"     # refresh sigue opaco; no requiere JWE
+
+jwe:
+  enabled: true
+  targets: ["access"]
+  header_requirements:
+    cty: "JWT"                    # nested JWT
+  key_management:
+    allowed_algs: ["RSA-OAEP-256", "ECDH-ES+A256KW"]
+    default_alg: "RSA-OAEP-256"
+    recipient_model: "single"     # "single" | "multi" (no MVP)
+  content_encryption:
+    enc: "A256GCM"
+    aad: "iss,aud,iat,exp,jti"
+  keystore:
+    provider: "KMS|FILE"
+    active_kid_enc: "enc-2025-11-01"
+    rotation_policy:
+      schedule: "P90D"
+      overlap_grace: "P14D"
+    cache_decrypters_ttl: "PT10M"
+
+env:
+  AUTH_SIGNING_ALG: "RS256"
+  AUTH_JWKS_BASE_URL: "https://auth.example.com/.well-known/jwks.json"
+  AUTH_KEYSTORE_PROVIDER: "KMS"           # dev: FILE
+  AUTH_JWKS_CACHE_TTL_SEC: 600
+  AUTH_KEYS_DIR: "./keys"                  # FILE only: private_{kid}.pem / public_{kid}.pem
+  AUTH_ACTIVE_KID: "sig-2025-11-01"
+  AUTH_KMS_KEY_ALIAS: "alias/auth-jwt"
+  AUTH_KMS_REGION: "us-east-1"
+  AUTH_JWE_ENABLED: "true"
+  AUTH_JWE_DEFAULT_KM_ALG: "RSA-OAEP-256"
+  AUTH_JWE_CONTENT_ENC: "A256GCM"
+  AUTH_ACTIVE_KID_ENC: "enc-2025-11-01"
+  AUTH_ENC_KEYS_DIR: "./keys-enc"         # FILE only
+  AUTH_KMS_ENC_KEY_ALIAS: "alias/auth-jwe"
+
+conventions:
+  error_shape: { error: { code: string, message: string } }
+  error_codes:
+    - AUTH_INVALID_CREDENTIALS
+    - AUTH_EMAIL_NOT_VERIFIED
+    - AUTH_TOKEN_EXPIRED
+    - AUTH_TOKEN_REVOKED
+    - AUTH_REFRESH_NOT_FOUND
+    - AUTH_RATE_LIMIT
+    - AUTH_BAD_REQUEST
+    - AUTH_FORBIDDEN
+  tokens:
+    access: "JWT (JWS firmado; si access_token_mode=nested, además JWE cifrado)"
+    refresh: "opaco (random 256 bits) entregado como string o cookie httpOnly"
+  cookies:
+    refresh_cookie_name: "refresh_token"
+    use_http_only: true
+    path: "/auth"
+  headers:
+    access_header: "Authorization: Bearer <jwt or jwe>"
+    idempotency: "Idempotency-Key (opcional en /auth/login)"
+
+data_model:
+  users:
+    id: "uuid, pk"
+    email: "citext, unique, indexed"
+    password_hash: "text"
+    email_verified: "boolean, default false"
+    created_at: "timestamptz, default now()"
+    updated_at: "timestamptz, default now()"
+  refresh_tokens:
+    id: "uuid, pk"
+    user_id: "uuid fk -> users(id) on delete cascade"
+    token_hash: "bytea (sha256 del refresh raw), unique"
+    issued_at: "timestamptz, default now()"
+    expires_at: "timestamptz > issued_at"
+    revoked_at: "timestamptz, nullable"
+    parent_id: "uuid fk -> refresh_tokens(id), nullable"
+    user_agent: "text, nullable"
+    ip: "inet, nullable"
+  audit_log_optional:
+    id: "bigserial, pk"
+    event: "text (auth.login.success|failure, token.refresh.success|reuse_detected, auth.logout)"
+    user_id: "uuid fk -> users(id), nullable"
+    jti: "text, nullable"
+    refresh_id: "uuid fk -> refresh_tokens(id), nullable"
+    ip: "inet, nullable"
+    user_agent: "text, nullable"
+    created_at: "timestamptz, default now()"
+
+indexes:
+  - "users(email)"
+  - "refresh_tokens(user_id, expires_at)"
+  - "refresh_tokens(token_hash)"
+  - "audit_log_optional(created_at)"
+
+security_rules:
+  password_policy:
+    min_len: 8
+    require: { letters: true, digits: true }
+    forbid_common: true
+  jwt_claims:
+    sub: "user_id (uuid string)"
+    iss: "${AUTH_ISS}"
+    aud: "${AUTH_AUD}"
+    iat: "epoch seconds"
+    exp: "epoch seconds (iat + ACCESS_TTL)"
+    jti: "uuid v4"
+    scope: "opcional; espacio-separado"
+  access_verification:
+    steps:
+      - "rechazar header.alg ≠ AUTH_SIGNING_ALG; 'none' prohibido"
+      - "resolver 'kid' (use=sig) via JWKS; cache por AUTH_JWKS_CACHE_TTL_SEC"
+      - "verificar firma (RS/ES) y validar iss/aud/exp/nbf/iat con leeway"
+  refresh_rotation:
+    model: "Rotación obligatoria; reuse detection revoca familia y alerta"
+    reuse_detection: "si llega un refresh revocado, marcar cadena comprometida y revocar descendencia"
+  storage:
+    never_store_raw_refresh: true
+    store_only_hash: true
+  jwe_validation:
+    steps:
+      - "Rechazar 'alg' no permitido (RSA-OAEP-256/ECDH-ES+A256KW)"
+      - "Resolver kid_enc vía JWKS (use=enc); cache de decrypters"
+      - "Descifrar JWE (A256GCM)"
+      - "Extraer JWT interno (cty=JWT) y validar JWS como arriba"
+      - "Si AAD configurado, verificar coherencia de claims"
+  key_rotation:
+    policy: "roll-forward-with-grace (sig & enc)"
+    steps:
+      - "Generar nuevos pares (sig/enc) en KMS/FILE con nuevos kid/kid_enc"
+      - "Publicar JWKS con claves old+new"
+      - "Emitir con claves nuevas; mantener verificación de old durante overlap_grace"
+      - "Retirar claves viejas tras grace; destruir privadas"
+
+api:
+  - method: GET
+    path: /.well-known/jwks.json
+    auth: public
+    responses:
+      "200":
+        { keys: [ { kty: string, kid: string, alg: string, use: "sig"|"enc",
+                    n?: string, e?: string, crv?: string, x?: string, y?: string } ] }
+    notes:
+      - "Exponer claves públicas activas y en gracia para 'sig' y 'enc'."
+
+  - method: POST
+    path: /auth/register
+    auth: public
+    request: { email: string, password: string }
+    responses:
+      "201": { id: uuid, email: string, email_verified: boolean }
+      "400": { error: { code: AUTH_BAD_REQUEST, message: string } }
+    effects:
+      - "Crear usuario con email normalizado; password_hash (bcrypt/Argon2id)."
+      - "email_verified=false (MVP sin verificación)."  
+
+  - method: POST
+    path: /auth/login
+    auth: public
+    request: { email: string, password: string }
+    responses:
+      "200": { access_token: string, refresh_token?: string, token_type: "Bearer", expires_in: 900 }
+      "401": { error: { code: AUTH_INVALID_CREDENTIALS, message: string } }
+      "429": { error: { code: AUTH_RATE_LIMIT, message: string } }
+    notes:
+      - "Si se usan cookies, setear refresh httpOnly; sino devolver en body."
+      - "access_token es JWS o JWE (según access_token_mode)."
+    effects:
+      - "Validar credenciales sin filtrar existencia del email."
+      - "Emitir access (15m) con claims mínimas."
+      - "Emitir refresh opaco (14d); persistir sha256."
+      - "Audit login.success/failure."
+
+  - method: POST
+    path: /auth/token/refresh
+    auth: public
+    request: { refresh_token?: string }
+    responses:
+      "200": { access_token: string, refresh_token?: string, token_type: "Bearer", expires_in: 900 }
+      "401":
+        - { error: { code: AUTH_REFRESH_NOT_FOUND, message: string } }
+        - { error: { code: AUTH_TOKEN_REVOKED, message: string } }
+        - { error: { code: AUTH_TOKEN_EXPIRED, message: string } }
+      "429": { error: { code: AUTH_RATE_LIMIT, message: string } }
+    effects:
+      - "Validar refresh (hash/exp/ revoked)."
+      - "Rotación: revocar el usado; crear uno nuevo (parent_id)."
+      - "Emitir nuevo access (JWS/JWE)."
+      - "Audit token.refresh.success o reuse_detected."
+
+  - method: POST
+    path: /auth/logout
+    auth: "requires refresh (cookie o body)"
+    request: {}
+    responses:
+      "204": {}
+      "401": { error: { code: AUTH_REFRESH_NOT_FOUND, message: string } }
+    effects:
+      - "Revocar refresh vigente (revoked_at=now()); invalida descendencia."
+
+  - method: GET
+    path: /auth/me
+    auth: bearer
+    request: {}
+    responses:
+      "200": { id: uuid, email: string, email_verified: boolean }
+      "401": { error: { code: AUTH_TOKEN_EXPIRED, message: string } }
+    effects:
+      - "Decodificar/verificar access (JWE->JWS si nested) y retornar usuario."
+
+middleware:
+  rate_limit:
+    login: { window: "15m", max: 10, key: "IP" }
+    refresh: { window: "15m", max: 30, key: "IP" }
+  cors:
+    allow_origins: ["*"]
+    allow_headers: ["Authorization", "Content-Type", "Idempotency-Key"]
+    allow_methods: ["POST", "GET", "OPTIONS"]
+    allow_credentials: true
+  security_headers:
+    - "X-Content-Type-Options: nosniff"
+    - "X-Frame-Options: DENY"
+    - "Referrer-Policy: no-referrer"
+    - "Content-Security-Policy: default-src 'none'; frame-ancestors 'none'"
+
+impl_contracts:
+  services:
+    AuthService:
+      methods:
+        - name: register
+          in: { email: string, password: string }
+          out: { id: uuid, email: string, email_verified: boolean }
+        - name: login
+          in: { email: string, password: string, user_agent?: string, ip?: string }
+          out: { access_token: string, refresh_token?: string, expires_in: int }
+        - name: refresh
+          in: { refresh_token?: string, user_agent?: string, ip?: string }
+          out: { access_token: string, refresh_token?: string, expires_in: int }
+        - name: logout
+          in: { refresh_token?: string }
+          out: { ok: true }
+        - name: me
+          in: { access_token: string }
+          out: { id: uuid, email: string, email_verified: boolean }
+    KeyStore:
+      methods:
+        - name: get_active_signer
+          out: { kid: string, alg: string, sign: "<bytes->bytes>" }
+        - name: get_public_jwks
+          out: { keys: array }
+        - name: rotate_keys
+          in: { new_alg?: "RS256"|"ES256" }
+          out: { new_kid: string }
+    KeyStoreEnc:
+      methods:
+        - name: get_active_encrypter
+          out: { kid_enc: string, alg: string, encrypt: "<bytes->jwe>" }
+        - name: get_public_jwks_enc
+          out: { keys: array }
+        - name: rotate_enc_keys
+          in: { new_alg?: "RSA-OAEP-256"|"ECDH-ES+A256KW" }
+          out: { new_kid_enc: string }
+    TokenSigner:
+      methods:
+        - name: sign_jwt
+          in: { claims: object, alg?: string }
+          out: { jwt: string, kid: string }
+        - name: verify_jwt
+          in: { jwt: string, expected_aud: string, expected_iss: string }
+          out: { valid: bool, claims?: object, reason?: string, kid?: string }
+    TokenEncrypter:
+      methods:
+        - name: encrypt_nested
+          in: { signed_jwt: string, km_alg?: string, enc?: string }
+          out: { jwe: string, kid_enc: string }
+        - name: decrypt_nested
+          in: { jwe: string, expected_aud: string, expected_iss: string }
+          out: { valid: bool, signed_jwt?: string, reason?: string, kid_enc?: string }
+
+  token:
+    make_access(in: { user_id: uuid, scope?: string }): string
+    make_refresh(): { raw: string, hash: bytes, expires_at: timestamptz }
+    hash_refresh(in: string): bytes
+    verify_access(in: string): { valid: bool, claims?: object, reason?: string }
+
+db_migrations_sql_hint:
+  - |
+    CREATE EXTENSION IF NOT EXISTS citext;
+    CREATE TABLE IF NOT EXISTS users (
+      id uuid PRIMARY KEY,
+      email citext UNIQUE NOT NULL,
+      password_hash text NOT NULL,
+      email_verified boolean NOT NULL DEFAULT false,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+  - |
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+      id uuid PRIMARY KEY,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash bytea NOT NULL UNIQUE,
+      issued_at timestamptz NOT NULL DEFAULT now(),
+      expires_at timestamptz NOT NULL,
+      revoked_at timestamptz,
+      parent_id uuid REFERENCES refresh_tokens(id),
+      user_agent text,
+      ip inet
+    );
+    CREATE INDEX IF NOT EXISTS refresh_tokens_user_expires_idx ON refresh_tokens(user_id, expires_at);
+
+acceptance_tests:
+  - name: "Login OK"
+    given: "usuario existente con password válido"
+    when: "POST /auth/login"
+    then: '200 con {access, refresh}; audit login.success'
+
+  - name: "Login inválido"
+    given: "password incorrecto"
+    when: "POST /auth/login"
+    then: '401 AUTH_INVALID_CREDENTIALS; audit login.failure'
+
+  - name: "Access expirado"
+    given: "access expira tras 15m"
+    when: "GET /auth/me con access expirado"
+    then: "401 AUTH_TOKEN_EXPIRED"
+
+  - name: "Refresh OK (rotación)"
+    given: "refresh válido y no revocado"
+    when: "POST /auth/token/refresh"
+    then: "200 con nuevo access (JWS/JWE) y nuevo refresh; el viejo queda revocado"
+
+  - name: "Refresh reusado"
+    given: "refresh ya rotado/revocado"
+    when: "POST /auth/token/refresh"
+    then: "401 AUTH_TOKEN_REVOKED; audit reuse_detected"
+
+  - name: "Logout"
+    given: "usuario con refresh vigente"
+    when: "POST /auth/logout"
+    then: "204; refresh revocado; futuros refresh ⇒ 401"
+
+  - name: "Rate limit"
+    given: ">N intentos rápidos de login o refresh en 15m por IP"
+    when: "invocar nuevamente"
+    then: "429 AUTH_RATE_LIMIT"
+
+non_functional:
+  observability:
+    logs: "estructura JSON; request_id, user_id, ip, user_agent, jti, kid_sig, kid_enc"
+    metrics: "contadores de login/refresh/logout, errores por código, latencia"
+  testability:
+    seeds: "crear usuario demo solo en dev"
+  migration_path_from_hs256:
+    notes:
+      - "Mantener verificación HS256 transitoria para tokens viejos (feature flag)."
+      - "Emitir solo RS/ES desde active_kid."
+      - "Retirar HS luego de la gracia."
+  hardening_recommendations:
+    - "Cambiar bcrypt -> Argon2id."
+    - "Habilitar pepper en KMS para password y refresh_hash (HMAC-peppered)."
+    - "CSRF si refresh va en cookie: double-submit token en /auth/token/refresh."
+    - "Opcional: 2FA (TOTP/WebAuthn)."

@@ -1,0 +1,98 @@
+Quiero que implementes un módulo de autenticación a partir del archivo req.back.v3.2.yml que te adjunto.
+Leé el YAML completo y cumplilo exactamente: endpoints, modelos, seguridad, flujos y contratos.
+
+Objetivo
+
+Backend FastAPI (Python 3.11+) con:
+
+Access tokens: JWS (RS/ES) + JWE nested.
+
+Refresh opaco con rotación obligatoria y reuse detection.
+
+JWKS con claves separadas use=sig|enc|enc_front y kid.
+
+Front-side encryption: aceptar __front_enc__ en endpoints target y descifrar al inicio.
+
+Rate limit, security headers, CORS, audit logs.
+
+Entregables
+
+Código en estructura:
+api/        # routers FastAPI (auth, jwks, health)
+services/   # AuthService, TokenSigner, TokenEncrypter, FrontPayloadDecrypter, KeyStores
+models/     # pydantic schemas (requests/responses) y dominio
+db/         # SQLAlchemy (models, session), migrations (alembic), seeds dev
+utils/      # crypto utils, rate-limit, security headers, cors, errors
+main.py     # create_app(), include_routers, middleware
+
+
+
+pyproject.toml / requirements.txt.
+
+alembic con migraciones según db_migrations_sql_hint.
+
+env/.env.example con todas las variables env del YAML.
+
+README.md con setup, run y pruebas.
+
+Reglas obligatorias
+
+No inventes endpoints ni payloads.
+
+Si falta algo en el YAML: deja TODO claro.
+
+No loguees tokens ni payloads descifrados.
+
+Access en memoria, refresh en cookie httpOnly si aplica (no localStorage).
+
+Rechazá alg inesperado, exigí kid, validá iss/aud/exp/nbf/iat/jti.
+
+Funcional mínimo (debe quedar andando)
+
+GET /.well-known/jwks.json (publica use=sig|enc|enc_front activas + en gracia).
+
+POST /auth/register y POST /auth/login:
+
+aceptar plano o front_enc (si viene, descifrar con enc_front).
+
+emitir access (JWS→JWE) y refresh opaco (guardar sha256).
+
+POST /auth/token/refresh: validar, rotar refresh, emitir nuevos tokens.
+
+POST /auth/logout: revocar refresh vigente (y descendencia si corresponde).
+
+GET /auth/me: validar access (si nested: JWE→JWS), devolver usuario.
+
+Rate limit en login/refresh; security headers y CORS según YAML.
+
+Claves y cripto (resumen de implementación)
+
+Firma (use=sig): RS256/ES256 con kid activo; rotación con grace.
+
+Cifrado tokens (use=enc): RSA-OAEP-256 o ECDH-ES+A256KW + A256GCM.
+
+Cifrado front (use=enc_front): RSA-OAEP-256 + A256GCM; aceptar objeto:
+{ "__front_enc__": { "kid": "...", "alg": "RSA-OAEP-256", "enc": "A256GCM", "cek": "...", "iv": "...", "ct": "...", "aad": "?" } }
+Rotaciones: publicar JWKS con old+new durante overlap_grace; retirar privadas viejas.
+
+Errores estandarizados
+
+Shape: { "error": { "code": string, "message": string } } con error_codes del YAML.
+
+Tests de aceptación (mínimos)
+
+Login ok/invalid, access expirado, refresh ok/rotado, reuse detection, logout, rate limit.
+
+JWKS publica claves correctas según use y kid.
+
+__front_enc__ aceptado en register/login y descifrado correctamente.
+
+Run (ejemplo)
+
+uvicorn main:app --reload
+
+Variables desde .env (valores por defecto sensatos en dev FILE provider).
+
+Alembic up. Seed de usuario demo en dev.
+
+Importante: respeta el YAML para requests/responses, claims, TTLs, headers y reglas de validación. Si algo no está en el YAML, TODO y sigue.
