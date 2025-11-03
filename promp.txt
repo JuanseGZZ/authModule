@@ -1,98 +1,119 @@
-Quiero que implementes un módulo de autenticación a partir del archivo req.back.v3.2.yml que te adjunto.
-Leé el YAML completo y cumplilo exactamente: endpoints, modelos, seguridad, flujos y contratos.
+Estás por generar el backend de un módulo de autenticación profesional y seguro.
 
-Objetivo
+Se te entrega un archivo YAML llamado req.back.v3.2.mini.yml que define el contrato técnico y funcional del módulo: endpoints, modelos de datos, seguridad, y reglas de negocio.
+Tu tarea es leer el YAML completo y cumplirlo exactamente, sin agregar nada que no esté allí.
+El objetivo es obtener un MVP funcional, limpio, y extremadamente legible.
 
-Backend FastAPI (Python 3.11+) con:
+🧩 Reglas absolutas
 
-Access tokens: JWS (RS/ES) + JWE nested.
+Código lo más simple y legible posible.
+Prioridad 1: claridad. No escribir código “clever”.
 
-Refresh opaco con rotación obligatoria y reuse detection.
+Todas las variables deben tener nombres significativos.
 
-JWKS con claves separadas use=sig|enc|enc_front y kid.
+No usar ORM.
+Usar consultas SQL directas con psycopg (psycopg3).
+Mantener cada consulta en una función clara, con try/except manejado con precisión.
 
-Front-side encryption: aceptar __front_enc__ en endpoints target y descifrar al inicio.
+No agregar endpoints ni lógica no especificada en el YAML.
 
-Rate limit, security headers, CORS, audit logs.
+Solo hacer lo funcional del YAML (MVP).
+Nada de tests, métricas, logs, middlewares de tracing, ni extras.
 
-Entregables
+Estructura de carpetas obligatoria (patrón mínimo):
+api/
+  ├── auth.py      # todas las rutas /auth/*
+  └── jwks.py      # ruta /.well-known/jwks.json
 
-Código en estructura:
-api/        # routers FastAPI (auth, jwks, health)
-services/   # AuthService, TokenSigner, TokenEncrypter, FrontPayloadDecrypter, KeyStores
-models/     # pydantic schemas (requests/responses) y dominio
-db/         # SQLAlchemy (models, session), migrations (alembic), seeds dev
-utils/      # crypto utils, rate-limit, security headers, cors, errors
-main.py     # create_app(), include_routers, middleware
+service/
+  └── auth.py      # lógica de negocio del módulo
+
+models/
+  ├── user.py
+  ├── refresh_token.py
+  └── types.py     # claims, enums, estructuras auxiliares
+
+db/
+  └── auth.py      # consultas SQL directas
+
+utils/
+  ├── crypto.py    # firma/verificación JWS y cifrado JWE
+  ├── jwks.py      # carga y cacheo de claves
+  ├── tokens.py    # helpers de generación/rotación
+  └── security.py  # validaciones y políticas
+
+main.py            # punto de entrada FastAPI
+
+- Detalles técnicos obligatorios
+
+Framework: FastAPI (Python 3.11+)
+
+Autenticación: JWT con firma JWS (RS256/ES256) y cifrado JWE anidado (“nested”).
+
+Refresh tokens: opacos (hash SHA256) con rotación obligatoria.
+
+Endpoint /auth/token/refresh debe revocar el token usado y emitir uno nuevo.
+
+Exponer JWKS público en /.well-known/jwks.json con claves sig, enc, enc_front.
+
+Implementar front-side encryption opcional: si llega un campo __front_enc__, descifrarlo antes de procesar el cuerpo.
+
+Usar bcrypt para hash de contraseñas.
+
+No almacenar refresh tokens en texto claro, solo el hash.
+
+Cumplir las políticas de validación y errores descriptos en el YAML.
+
+Todas las respuestas deben seguir la forma:
+{ "error": { "code": "AUTH_INVALID_CREDENTIALS", "message": "..." } }
 
 
+Objetivo del código final
 
-pyproject.toml / requirements.txt.
+Un módulo autocontenido y funcional, que permita:
 
-alembic con migraciones según db_migrations_sql_hint.
+Registrar usuarios (/auth/register)
 
-env/.env.example con todas las variables env del YAML.
+Iniciar sesión (/auth/login)
 
-README.md con setup, run y pruebas.
+Refrescar tokens (/auth/token/refresh)
 
-Reglas obligatorias
+Cerrar sesión (/auth/logout)
 
-No inventes endpoints ni payloads.
+Exponer claves públicas (/.well-known/jwks.json)
 
-Si falta algo en el YAML: deja TODO claro.
+Todo en menos de ~400 líneas totales, bien organizadas, sin redundancias y sin dependencias innecesarias.
 
-No loguees tokens ni payloads descifrados.
+- Requisitos de implementación
 
-Access en memoria, refresh en cookie httpOnly si aplica (no localStorage).
+Cada endpoint debe llamar a su correspondiente función de servicio.
 
-Rechazá alg inesperado, exigí kid, validá iss/aud/exp/nbf/iat/jti.
+Los servicios usan funciones del nivel db/ para acceder a datos.
 
-Funcional mínimo (debe quedar andando)
-
-GET /.well-known/jwks.json (publica use=sig|enc|enc_front activas + en gracia).
-
-POST /auth/register y POST /auth/login:
-
-aceptar plano o front_enc (si viene, descifrar con enc_front).
-
-emitir access (JWS→JWE) y refresh opaco (guardar sha256).
-
-POST /auth/token/refresh: validar, rotar refresh, emitir nuevos tokens.
-
-POST /auth/logout: revocar refresh vigente (y descendencia si corresponde).
-
-GET /auth/me: validar access (si nested: JWE→JWS), devolver usuario.
-
-Rate limit en login/refresh; security headers y CORS según YAML.
-
-Claves y cripto (resumen de implementación)
-
-Firma (use=sig): RS256/ES256 con kid activo; rotación con grace.
-
-Cifrado tokens (use=enc): RSA-OAEP-256 o ECDH-ES+A256KW + A256GCM.
-
-Cifrado front (use=enc_front): RSA-OAEP-256 + A256GCM; aceptar objeto:
-{ "__front_enc__": { "kid": "...", "alg": "RSA-OAEP-256", "enc": "A256GCM", "cek": "...", "iv": "...", "ct": "...", "aad": "?" } }
-Rotaciones: publicar JWKS con old+new durante overlap_grace; retirar privadas viejas.
-
-Errores estandarizados
-
-Shape: { "error": { "code": string, "message": string } } con error_codes del YAML.
-
-Tests de aceptación (mínimos)
-
-Login ok/invalid, access expirado, refresh ok/rotado, reuse detection, logout, rate limit.
-
-JWKS publica claves correctas según use y kid.
-
-__front_enc__ aceptado en register/login y descifrado correctamente.
-
-Run (ejemplo)
-
+El código debe funcionar ejecutando:
 uvicorn main:app --reload
 
-Variables desde .env (valores por defecto sensatos en dev FILE provider).
+Usar dataclasses o Pydantic solo para I/O y validación básica.
 
-Alembic up. Seed de usuario demo en dev.
+Si algo del YAML no está completamente definido, dejar un comentario # TODO explicando claramente la parte faltante.
 
-Importante: respeta el YAML para requests/responses, claims, TTLs, headers y reglas de validación. Si algo no está en el YAML, TODO y sigue.
+- Estilo general
+
+Usa imports explícitos y cortos.
+
+Comentarios solo donde sean esenciales para la comprensión.
+
+Evitá cualquier logging, print o testing innecesario.
+
+Formato limpio, consistente y fácil de leer.
+
+En el código: claridad antes que optimización.
+
+- Resumen
+
+Tu objetivo: Implementar exactamente lo que el YAML pide.
+Tu prioridad: Máxima legibilidad y mínima complejidad.
+Tu resultado: Un backend profesional, autocontenido y listo para correr, basado en FastAPI + PostgreSQL con JWT/JWE.
+
+
+y lo vas a devolver en un .zip
