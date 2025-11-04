@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Cliente Auth JWT</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{font-family:system-ui,Segoe UI,Arial,sans-serif;max-width:750px;margin:40px auto;padding:0 16px;color: #111;}
+    fieldset{margin:12px 0;padding:12px;border:1px solid #ddd;border-radius:8px;color: #111;}
+    label{display:block;margin:6px 0 2px}
+    input{width:100%;padding:8px;border:1px solid #ccc;border-radius:6px}
+    button{margin-top:8px;padding:8px 12px;border:0;border-radius:8px;cursor:pointer}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .row > *{flex:1}
+    pre{background:#111;color:#eee;padding:12px;border-radius:8px;overflow:auto}
+    .ok{background:#e8fff0}
+    .err{background:#ffeaea}
+  </style>
+</head>
+<body>
+  <h1>Cliente Auth JWT (Demo)</h1>
+
+  <div id="status"></div>
+
+  <fieldset>
+    <legend>Config</legend>
+    <label>API Base</label>
+    <input id="apiBase" value="http://127.0.0.1:8000" />
+  </fieldset>
+
+  <fieldset>
+    <legend>Register</legend>
+    <div class="row">
+      <div>
+        <label>Username</label>
+        <input id="rUser" value="emma" />
+      </div>
+      <div>
+        <label>Email</label>
+        <input id="rEmail" value="emma@example.com" />
+      </div>
+      <div>
+        <label>Password</label>
+        <input id="rPass" type="password" value="123456" />
+      </div>
+    </div>
+    <button onclick="doRegister()">Register</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Login</legend>
+    <div class="row">
+      <div>
+        <label>Username</label>
+        <input id="lUser" value="emma" />
+      </div>
+      <div>
+        <label>Password</label>
+        <input id="lPass" type="password" value="123456" />
+      </div>
+    </div>
+    <button onclick="doLogin()">Login</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Acciones</legend>
+    <button onclick="getMe()">GET /me</button>
+    <button onclick="doRefresh()">POST /auth/refresh</button>
+    <button onclick="doLogout(false)">Logout (solo este dispositivo)</button>
+    <button onclick="doLogout(true)">Logout (todos los dispositivos)</button>
+    <button onclick="showTokens()">Ver tokens actuales</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Resultados</legend>
+    <pre id="out"></pre>
+  </fieldset>
+
+<script type="module">
+import { jwtVerify, createLocalJWKSet } from "https://cdn.jsdelivr.net/npm/jose@5.6.3/+esm";
+
+const state = {
+  access_token: null,
+  refresh_token: null,
+};
+
+const cfg = {
+  iss: "https://auth.local",  // debe coincidir con ISSUER del backend
+  aud: "web|apis"
+};
+
+let JWKS = null;
+
+function api() {
+  return document.getElementById("apiBase").value.trim().replace(/\/$/, '');
+}
+
+async function getJWKS() {
+  if (JWKS) return JWKS;
+  const res = await fetch(api() + "/.well-known/jwks.json");
+  const data = await res.json();
+  JWKS = createLocalJWKSet(data);
+  console.log("🔑 JWKS cargado:", data);
+  return JWKS;
+}
+
+async function verifyJWT(token) {
+  try {
+    const jwks = await getJWKS();
+    const { payload, protectedHeader } = await jwtVerify(token, jwks, {
+      issuer: cfg.iss,
+      audience: cfg.aud,
+    });
+    console.log("✅ Token verificado:", protectedHeader, payload);
+    return true;
+  } catch (err) {
+    console.error("❌ Token inválido o manipulado:", err);
+    return false;
+  }
+}
+
+// ======================
+// Funciones principales
+// ======================
+
+async function doRegister() {
+  try {
+    const r = await fetch(api() + "/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: document.getElementById("rUser").value,
+        email: document.getElementById("rEmail").value,
+        password: document.getElementById("rPass").value
+      })
+    });
+    const data = await r.json();
+    if (!r.ok) throw data;
+
+    if (await verifyJWT(data.access_token)) {
+      state.access_token = data.access_token;
+      state.refresh_token = data.refresh_token;
+      console.log("✅ register ok", data);
+    }
+  } catch (e) {
+    console.error("❌ register error:", e);
+  }
+}
+
+async function doLogin() {
+  try {
+    const r = await fetch(api() + "/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: document.getElementById("lUser").value,
+        password: document.getElementById("lPass").value
+      })
+    });
+    const data = await r.json();
+    if (!r.ok) throw data;
+
+    if (await verifyJWT(data.access_token)) {
+      state.access_token = data.access_token;
+      state.refresh_token = data.refresh_token;
+      console.log("✅ login ok", data);
+    }
+  } catch (e) {
+    console.error("❌ login error:", e);
+  }
+}
+
+async function getMe() {
+  try {
+    if (!state.access_token) throw { error: "no access_token" };
+    const r = await fetch(api() + "/me", {
+      headers: { "Authorization": "Bearer " + state.access_token }
+    });
+    const data = await r.json();
+    if (!r.ok) throw data;
+    console.log("✅ /me ok", data);
+  } catch (e) {
+    console.error("❌ /me error:", e);
+  }
+}
+
+async function doRefresh() {
+  try {
+    if (!state.refresh_token) throw { error: "no refresh_token" };
+    const r = await fetch(api() + "/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: state.refresh_token })
+    });
+    const data = await r.json();
+    if (!r.ok) throw data;
+
+    if (await verifyJWT(data.access_token)) {
+      state.access_token = data.access_token;
+      state.refresh_token = data.refresh_token;
+      console.log("✅ refresh ok", data);
+    }
+  } catch (e) {
+    console.error("❌ refresh error:", e);
+  }
+}
+
+async function doLogout(allDevices = false) {
+  try {
+    if (!state.refresh_token) throw { error: "no refresh_token" };
+    const r = await fetch(api() + "/auth/logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: state.refresh_token, all_devices: allDevices })
+    });
+    const data = await r.json();
+    console.log("✅ logout ok", data);
+    state.access_token = null;
+    state.refresh_token = null;
+  } catch (e) {
+    console.error("❌ logout error:", e);
+  }
+}
+
+function showTokens() {
+  console.log("Access Token:", state.access_token);
+  console.log("Refresh Token:", state.refresh_token);
+}
+
+// Al final del <script type="module">
+window.doRegister = doRegister;
+window.doLogin = doLogin;
+window.getMe = getMe;
+window.doRefresh = doRefresh;
+window.doLogout = doLogout;
+window.showTokens = showTokens;
+
+</script>
+
+
+</body>
+</html>

@@ -4,6 +4,13 @@ from typing import Optional
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+ACCESS_TTL   = 15 * 60         # 15 min
+REFRESH_TTL  = 7 * 24 * 3600   # 7 días
+ISS          = "https://auth.tuapp.com"
+AUD          = "api://core"
+COOKIE_DOMAIN= ".tuapp.com"
+ALG          = "RS256"
+
 @router.post("/register")
 async def post_register(request: Request):
     try:
@@ -59,12 +66,12 @@ async def post_logout(request: Request):
     raise HTTPException(status_code=501, detail="Not implemented")
 
 
-@router.get("/verify")
-def get_verify(authorization: Optional[str] = Header(default=None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="missing bearer token")
+@router.get("/protectedApi")
+async def protectedApi(request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid JSON body")
 
-    access_token = authorization.split(" ", 1)[1]
 
-    # TODO: implementar verificación del access_token
-    raise HTTPException(status_code=501, detail="Not implemented")
+
