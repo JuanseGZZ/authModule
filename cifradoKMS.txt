@@ -1,0 +1,7 @@
+modulo que cifra y decifra la base de datos.
+
+mks guarda llave maestra.
+crea deks (llaves que se guardan cifradas con la llave maestra al lado de los datos cifrados por la dek en la base de datos)
+mks cuando se quieren ver los datos se le pasa la dek cifrada con la llave maestra y te devuelve la dek decifrada para que decifres los datos de la db.
+
+puedo ver de contratar KMS en la nueve

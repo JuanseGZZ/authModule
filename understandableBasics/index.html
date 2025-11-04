@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tester JWT (FastAPI)</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial; }
+    body { margin: 24px; }
+    .row { display: grid; grid-template-columns: 180px 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
+    input, button, textarea { font: inherit; padding: 8px; }
+    input[type="text"], input[type="password"] { width: 100%; }
+    textarea { width: 100%; height: 140px; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+    .btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .muted { color:#666; font-size: 0.9em; }
+    .ok { color: #0a7d2d; }
+    .err { color: #b00020; }
+    code { background: #f6f8fa; padding: 2px 6px; border-radius: 6px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  </style>
+</head>
+<body>
+  <h1>Tester JWT (FastAPI)</h1>
+  <p class="muted">Proba <code>/auth/login</code>, <code>/auth/refresh</code>, <code>/auth/logout</code> y <code>/api/secret</code>. El <em>access token</em> se guarda en memoria; el <em>refresh</em> va por <strong>cookie HttpOnly</strong>.</p>
+
+  <div class="card">
+    <h2>Config</h2>
+    <div class="row">
+      <label for="baseUrl">Base URL</label>
+      <input id="baseUrl" type="text" value="http://localhost:8000" />
+    </div>
+    <p class="muted">Nota: con cookie <code>Secure</code> activada en el backend, necesitás HTTPS para que se setee en el navegador. Para pruebas en <code>http://localhost</code>, podés desactivar <code>secure=True</code> en <code>set_refresh_cookie</code> o usar HTTPS local.</p>
+  </div>
+
+  <div class="card">
+    <h2>Login</h2>
+    <div class="row">
+      <label for="username">Usuario</label>
+      <input id="username" type="text" value="juan" />
+    </div>
+    <div class="row">
+      <label for="password">Password</label>
+      <input id="password" type="password" value="x" />
+    </div>
+    <div class="btns">
+      <button id="btnLogin">POST /auth/login</button>
+    </div>
+    <p id="loginStatus" class="muted"></p>
+    <label>Access Token</label>
+    <textarea id="accessToken" class="mono" placeholder="(aparece acá después de login)"></textarea>
+    <div class="btns">
+      <button id="btnDecode">Decodificar JWT (solo payload)</button>
+    </div>
+    <pre id="decoded" class="mono"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Secret (requiere Bearer)</h2>
+    <div class="btns">
+      <button id="btnSecret">GET /api/secret</button>
+    </div>
+    <pre id="secretOut" class="mono"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Refresh & Logout</h2>
+    <div class="btns">
+      <button id="btnRefresh">POST /auth/refresh (usa cookie)</button>
+      <button id="btnLogout">POST /auth/logout (borra cookie)</button>
+    </div>
+    <pre id="refreshOut" class="mono"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Última respuesta</h2>
+    <pre id="output" class="mono"></pre>
+  </div>
+
+<script>
+let currentAccess = "";
+
+function b64urlDecode(str) {
+  // Normaliza Base64URL -> Base64
+  str = str.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = str.length % 4;
+  if (pad === 2) str += "=="; else if (pad === 3) str += "="; else if (pad !== 0) str += "===";
+  try { return atob(str); } catch (e) { return ""; }
+}
+
+function decodeJwt(token) {
+  const parts = (token || "").split(".");
+  if (parts.length !== 3) return { error: "Formato JWT inválido" };
+  const header = JSON.parse(b64urlDecode(parts[0]));
+  const payload = JSON.parse(b64urlDecode(parts[1]));
+  const signatureB64url = parts[2];
+  return { header, payload, signatureB64url };
+}
+
+function getBase() { return document.getElementById('baseUrl').value.replace(/\/$/, ''); }
+function setOut(el, data) { document.getElementById(el).textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2); }
+
+async function doLogin() {
+  const base = getBase();
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  setOut('loginStatus', 'Logueando...');
+  try {
+    const res = await fetch(base + '/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include', // necesario para setear cookie HttpOnly
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    setOut('output', data);
+    if (!res.ok) throw new Error(data.detail || 'Error login');
+    currentAccess = data.access_token || '';
+    document.getElementById('accessToken').value = currentAccess;
+    setOut('loginStatus', '✅ Login OK');
+  } catch (e) {
+    setOut('loginStatus', '❌ ' + e.message);
+  }
+}
+
+async function doSecret() {
+  const base = getBase();
+  const token = document.getElementById('accessToken').value.trim();
+  if (!token) { setOut('secretOut', 'No hay access token'); return; }
+  try {
+    const res = await fetch(base + '/api/secret', {
+      headers: { 'Authorization': 'Bearer ' + token },
+      credentials: 'include'
+    });
+    const data = await res.json();
+    setOut('secretOut', data);
+    setOut('output', data);
+  } catch (e) { setOut('secretOut', String(e)); }
+}
+
+async function doRefresh() {
+  const base = getBase();
+  try {
+    const res = await fetch(base + '/auth/refresh', {
+      method: 'POST',
+      credentials: 'include'
+    });
+    const data = await res.json();
+    setOut('refreshOut', data);
+    setOut('output', data);
+    if (res.ok && data.access_token) {
+      currentAccess = data.access_token;
+      document.getElementById('accessToken').value = currentAccess;
+    }
+  } catch (e) { setOut('refreshOut', String(e)); }
+}
+
+async function doLogout() {
+  const base = getBase();
+  try {
+    const res = await fetch(base + '/auth/logout', {
+      method: 'POST',
+      credentials: 'include'
+    });
+    const data = await res.json();
+    setOut('output', data);
+    // limpiar access en UI
+    currentAccess = '';
+    document.getElementById('accessToken').value = '';
+    setOut('refreshOut', 'Sesión cerrada.');
+  } catch (e) { setOut('refreshOut', String(e)); }
+}
+
+function doDecode() {
+  const token = document.getElementById('accessToken').value.trim();
+  const dec = decodeJwt(token);
+  setOut('decoded', dec);
+}
+
+// Eventos
+document.getElementById('btnLogin').addEventListener('click', doLogin);
+document.getElementById('btnSecret').addEventListener('click', doSecret);
+document.getElementById('btnRefresh').addEventListener('click', doRefresh);
+document.getElementById('btnLogout').addEventListener('click', doLogout);
+document.getElementById('btnDecode').addEventListener('click', doDecode);
+</script>
+</body>
+</html>
