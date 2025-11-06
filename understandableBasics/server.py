@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import jwt
 
+# refresh token es db, acces token es el stateless.
+
 # === CONFIG ===
 ISS = "https://auth.tuapp.com"
 AUD = "https://api.tuapp.com"
