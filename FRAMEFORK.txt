@@ -1,0 +1,19 @@
+
+En si va a ser una parte back y una parte front. Siempre se va a usar JWT, pero el cifrado va a estar la posibilidad de stateless o statefull.
+
+Front:
+a libreria va a tener (todo en un encriptaciones.js)
+- config(rsa curva eliptic)
+- cifradoStateLess(body) -> cifra el payload y lo mete en body, y le agrega la AES cifrada con RSARSAELIPTIC.
+- cifradoStateFull(body, idGenerado) -> cifra el payload lo mete en el body y le mete al lado el idGenerado, cambia cada 15 min la clave.
+- handshake(url).
+
+Back:
+- configAuth(DBCredentialsRedis,DBCredentialsUsers,keysCurvaEliptica,keysRSAFirma) -> db por si quiere usar el sistema de statefull.
+- api/hadnshake() -> decifra con la clave curva eliptic y agarra la clave AES del front y crea una sesion en la db(idGenerado:keyAES), luego le responde con el idGenerado cifrada con la AES.
+- descifradoStateLess(body) -> descifra el payload con la AES cifrada con RSA curva ELIPTIC(no es el mismo que la firma) y lo saca del body y lo retorna.
+- descifradoStateFull(body) -> descifra el payload con la AES obtenida por el id que vino como texto plano dentro del body al lado del payload, y retorna el payload.
+
+- register(mail,user,pss) -> te registra y te retorna un JWT cifrado con el metodo cifradoStateFull
+- login(user/mail,pss) -> si es correcto te retorna un JWT cifrado con el metodo cifradoStateFull
+- 
