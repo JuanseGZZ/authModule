@@ -1,19 +1,74 @@
 
 En si va a ser una parte back y una parte front. Siempre se va a usar JWT, pero el cifrado va a estar la posibilidad de stateless o statefull.
 
+van a haber 2 sistemas que se pueden usar por separado o juntos y que comparten cosas para reutilizar codigo.
+state full para apis:{
+    cuando le llega la request va a usar descifradoStateFull(body) lo que va a consultar la db redis la AES correspondiente al ID para decifrar mensaje.
+}
+state less para apis:{
+    cuando le llega la reques va a usar descifradoStateLess(body) lo que va a usar la clave privada de la curva eliptica para decifrar la clave AES y luego decifrar el payload con esa clave AES y responder cifradamente con esa clave AES.
+}
+
 Front:
-a libreria va a tener (todo en un encriptaciones.js)
-- config(rsa curva eliptic)
+la libreria va a tener todo en un auth.js
+- config(public key curva eliptic, urlServer)
 - cifradoStateLess(body) -> cifra el payload y lo mete en body, y le agrega la AES cifrada con RSARSAELIPTIC.
 - cifradoStateFull(body, idGenerado) -> cifra el payload lo mete en el body y le mete al lado el idGenerado, cambia cada 15 min la clave.
-- handshake(url).
+- descifradoStateLess(body) decifra con la clave aes que genero antes.
+- descifradoStateFull(body) decifra con la clave aes que pacto antes.
+handshake{
+    - registerCall(email,user,pass) 
+    - loginCall(user/email,pass)
+}
 
 Back:
-- configAuth(DBCredentialsRedis,DBCredentialsUsers,keysCurvaEliptica,keysRSAFirma) -> db por si quiere usar el sistema de statefull.
-- api/hadnshake() -> decifra con la clave curva eliptic y agarra la clave AES del front y crea una sesion en la db(idGenerado:keyAES), luego le responde con el idGenerado cifrada con la AES.
+- configAuth(DBCredentialsRedis(idGenerado,refresh tokens,AESkeys),DBCredentialsUsers(data),keysCurvaEliptica,keysRSAFirma, bool de que sistema usara para las apis) -> db por si quiere usar el sistema de statefull.
+- api/hadnshake() -> decifra con la clave curva eliptic y agarra la clave AES del front y crea una sesion en la db(idGenerado:keyAES), luego le responde con el idGenerado cifrada con la AES, y con el JWT(refresh y acces token, y los headers y claims correspondientes).
 - descifradoStateLess(body) -> descifra el payload con la AES cifrada con RSA curva ELIPTIC(no es el mismo que la firma) y lo saca del body y lo retorna.
 - descifradoStateFull(body) -> descifra el payload con la AES obtenida por el id que vino como texto plano dentro del body al lado del payload, y retorna el payload.
+- cifradoStateLess(body,AESuserSended) -> cifra con la clave AES que le llego y con la cual decifro.
+- cifradoStateFull(body, idGenerado) -> cifra con la clave guardada en la db.
 
-- register(mail,user,pss) -> te registra y te retorna un JWT cifrado con el metodo cifradoStateFull
-- login(user/mail,pss) -> si es correcto te retorna un JWT cifrado con el metodo cifradoStateFull
-- 
+- register(mail,user,pss) -> ejecuta handshake y luego, te registra y te retorna un JWT cifrado con el metodo cifradoStateFull().
+- login(user/mail,pss) -> ejecuta handshake y luego, si es correcto te retorna un JWT cifrado con el metodo cifradoStateFull.
+- refresh(refresh token) -> te emite un nuevo acces token y te lo retorna cifrado con el AES del cifradoStateFull.
+- logout(JWT) -> elimina la sesion, o elimina el refresh token.
+
+KMS:
+esta parte del framework va a darnos dos funciones:
+- decifrarKey(keyEncripted) -> va a darnos la clave decifrada 
+- crearKeyUser() -> va a crear una clave random y nos la va a dar cifrada y decifrada, asi puedo guardar las cifar con la clave y guardar la clave cifrada en la db del user.
+
+
+modelo de uso de framework:
+En el back:
+Pones el modulo al lado del main y lo integras, y en el resto de modulos lo incluis y usas las cunciones en la api desencriptar(), encriptar(), validar(), decifrarKey(keyEncripted), crearKeyUser(). 
+Ademas cambias las configuraciones del modulo asi apuntan a las dbs, las claves, y aclaras que tipo de encriptaciones va a usar.
+De esta manera se incorporan los endpoints, register, login, refresh y logout, y ademas se pueden usar funciones desencriptar(), encriptar(), validar() dentro del resto de los modulos de la app.
+
+En el Front:
+es un file que agregas a tu proyecto y te sirve para llamar a las funciones login(user/email,password,serverUrl),register(email,user,password,serverUrl), logout(serverUrl), apiCall(payload,url) { adentro de esta func usa las funciones para cifrar y decifrar y llama a la url que se le paso pasandole el payload cifrado segun la configuracion que este planteada }.
+y podes aclarar que metodo de cifrado usar usar,
+
+
+MODELOS BASICOS:
+class dataPublic:
+    estos serian datos que se muestran a todo publico
+
+class dataPrivate:
+    estos serian datos que solo lo pueden saber modulos particulares (datos bancarios, docuementos, etx) (estan cifrados con contraseña que solo tiene el user)
+
+class dataProtected:
+    estos son datos que los pueden ver los modulos ( datos cifrados con KMS)
+
+#la idea seria que el usuario modifique solo los data models, segun la app que este haciendo nueva.
+
+class user:
+    datapublic:dataPublic
+    dataprivate:dataPrivate
+    dataprotected:dataProtected
+    mail:string
+    username:string
+    password:string
+    created:DATA
+    isAdmin:bool
