@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Auth Tester</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 20px; background: #0f172a; color: #e2e8f0; }
+    h1 { font-size: 1.6rem; margin: 0 0 12px; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
+    label { font-size: 0.9rem; display: block; margin-bottom: 6px; color: #cbd5e1; }
+    input, select, button, textarea { width: 100%; padding: 10px; margin-bottom: 12px; border-radius: 10px; border: 1px solid #334155; background:#0b1220; color:#e2e8f0; }
+    button { cursor: pointer; font-weight: 600; background: #1d4ed8; border-color: #1d4ed8; }
+    button:hover { background: #2563eb; }
+    .row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .muted { color: #94a3b8; font-size: 0.9rem; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #0b1220; padding: 12px; border-radius: 10px; border:1px solid #334155; }
+    small { color:#94a3b8; }
+  </style>
+</head>
+<body>
+  <h1>Auth Tester</h1>
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>Server URL</label>
+        <input id="serverUrl" placeholder="http://localhost:8000" value="http://localhost:8000"/>
+      </div>
+      <div>
+        <label>Crypto Mode</label>
+        <select id="cryptoMode">
+          <option value="stateful" selected>stateful</option>
+          <option value="stateless">stateless</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <button id="btnConfig">Config</button>
+      <button id="btnHandshake">Handshake</button>
+    </div>
+    <small class="muted">Tip: si abrís este archivo como <code>file://</code>, puede que necesites habilitar CORS en el backend o servir este archivo con un servidor estático (por ejemplo: <code>python -m http.server 8080</code>).</small>
+  </div>
+
+  <div class="card">
+    <h2>Auth</h2>
+    <div class="grid3">
+      <div>
+        <label>Email</label>
+        <input id="email" placeholder="emma@example.com"/>
+      </div>
+      <div>
+        <label>Usuario</label>
+        <input id="username" placeholder="emma"/>
+      </div>
+      <div>
+        <label>Password</label>
+        <input id="password" type="password" placeholder="supersecret"/>
+      </div>
+    </div>
+    <div class="row">
+      <button id="btnRegister">Register</button>
+      <button id="btnLogin">Login</button>
+    </div>
+    <div class="row">
+      <button id="btnRefresh">Refresh</button>
+      <button id="btnLogout">Logout</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Echo</h2>
+    <label>Payload JSON</label>
+    <textarea id="echoInput" rows="6">{ "hello": "world" }</textarea>
+    <button id="btnEcho">POST /echo</button>
+  </div>
+
+  <div class="card">
+    <h2>Estado</h2>
+    <pre id="stateOut">-</pre>
+  </div>
+
+  <div class="card">
+    <h2>Logs</h2>
+    <pre id="logOut">-</pre>
+  </div>
+
+  <script src="./auth.js"></script>
+  <script>
+    // Helpers de UI
+    function log(msg, obj) {
+      const out = document.getElementById('logOut');
+      const time = new Date().toISOString();
+      let line = '[' + time + '] ' + msg;
+      if (obj !== undefined) {
+        try { line += '\\n' + JSON.stringify(obj, null, 2); } catch(e) { line += '\\n' + String(obj); }
+      }
+      out.textContent = (out.textContent === '-' ? '' : out.textContent + '\\n') + line + '\\n';
+      out.scrollTop = out.scrollHeight;
+    }
+    function showState() {
+      const s = AuthClient.getState();
+      document.getElementById('stateOut').textContent = JSON.stringify(s, null, 2);
+    }
+    function val(id) { return document.getElementById(id).value; }
+
+    // Acciones
+    document.getElementById('btnConfig').addEventListener('click', async () => {
+      try {
+        const url = val('serverUrl');
+        const mode = document.getElementById('cryptoMode').value;
+        const res = await AuthClient.config(url, mode);
+        log('Config OK', res);
+        showState();
+      } catch (e) {
+        log('Config error', e.message || e);
+      }
+    });
+
+    document.getElementById('btnHandshake').addEventListener('click', async () => {
+      try {
+        const res = await AuthClient.handshake();
+        log('Handshake OK', res);
+        showState();
+      } catch (e) {
+        log('Handshake error', e.message || e);
+      }
+    });
+
+    document.getElementById('btnRegister').addEventListener('click', async () => {
+      try {
+        const res = await AuthClient.registerCall(val('email'), val('username'), val('password'));
+        log('Register OK', res);
+        showState();
+      } catch (e) {
+        log('Register error', e.message || e);
+      }
+    });
+
+    document.getElementById('btnLogin').addEventListener('click', async () => {
+      try {
+        const userOrEmail = val('username') || val('email');
+        const res = await AuthClient.loginCall(userOrEmail, val('password'));
+        log('Login OK', res);
+        showState();
+      } catch (e) {
+        log('Login error', e.message || e);
+      }
+    });
+
+    document.getElementById('btnRefresh').addEventListener('click', async () => {
+      try {
+        const res = await AuthClient.refreshCall();
+        log('Refresh OK', res);
+        showState();
+      } catch (e) {
+        log('Refresh error', e.message || e);
+      }
+    });
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      try {
+        const res = await AuthClient.logoutCall();
+        log('Logout OK', res);
+        showState();
+      } catch (e) {
+        log('Logout error', e.message || e);
+      }
+    });
+
+    document.getElementById('btnEcho').addEventListener('click', async () => {
+      try {
+        const obj = JSON.parse(document.getElementById('echoInput').value || '{}');
+        const res = await AuthClient.echoCall(obj);
+        log('Echo OK', res);
+        showState();
+      } catch (e) {
+        log('Echo error', e.message || e);
+      }
+    });
+
+    // Estado inicial
+    showState();
+  </script>
+</body>
+</html>
