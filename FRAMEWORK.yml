@@ -1,0 +1,164 @@
+framework:
+  descripcion_general: >
+    Framework con parte backend y frontend. Utiliza JWT siempre, con posibilidad
+    de cifrado stateless o statefull. Ambos sistemas pueden funcionar juntos o separados.
+
+  sistemas:
+    statefull:
+      descripcion: >
+        Sistema para APIs que mantiene estado. Consulta Redis para obtener la clave AES asociada al ID.
+      backend:
+        descifradoStateFull:
+          descripcion: >
+            Usa descifradoStateFull(body) al recibir una request.
+            Consulta Redis (id -> clave AES) para descifrar el mensaje.
+      frontend:
+        cifradoStateFull:
+          descripcion: >
+            Cifra el payload y lo incluye en el body junto al idGenerado.
+            La clave cambia cada 15 minutos.
+        descifradoStateFull:
+          descripcion: >
+            Descifra el contenido usando la clave AES pactada previamente.
+
+    stateless:
+      descripcion: >
+        Sistema para APIs que no mantiene estado. Usa RSA(cypher) para proteger
+        la clave AES con la que se cifra el payload.
+      backend:
+        descifradoStateLess:
+          descripcion: >
+            Usa descifradoStateLess(body), aplicando la clave privada de la RSA(cypher)
+            para descifrar la clave AES, luego descifra el payload y responde cifrado
+            con esa misma AES.
+      frontend:
+        cifradoStateLess:
+          descripcion: >
+            Cifra el payload y lo mete en el body. Agrega la AES cifrada con RSA/RSA(cypher).
+        descifradoStateLess:
+          descripcion: >
+            Descifra con la clave AES generada anteriormente.
+
+  frontend:
+    descripcion: >
+      Librería auth.js con funciones de autenticación y cifrado.
+    estructura:
+      - config(public_key_RSA(cypher), urlServer)
+      - cifradoStateLess(body)
+      - cifradoStateFull(body, idGenerado)
+      - descifradoStateLess(body)
+      - descifradoStateFull(body)
+    handshake:
+      - registerCall(email, user, pass)
+      - loginCall(user/email, pass)
+    api_call:
+      descripcion: >
+        apiCall(payload, url) usa las funciones de cifrado/descifrado según la configuración
+        y envía el payload cifrado al endpoint correspondiente.
+
+  backend:
+    descripcion: >
+      Módulo integrable al proyecto backend. Permite configurar conexión a bases de datos,
+      llaves criptográficas y tipo de sistema de cifrado.
+    configuracion:
+      - DBCredentialsRedis(idGenerado, refresh_tokens, AESkeys)
+      - DBCredentialsUsers(data)
+      - keysRSA(cypher)
+      - keysRSAFirma
+      - bool_tipo_sistema (define si usa statefull o stateless)
+    apis:
+      handshake:
+        descripcion: >
+          Descifra con clave RSA(cypher), obtiene AES del front, crea sesión en DB (id:keyAES),
+          responde con idGenerado cifrado con AES y JWT (refresh y access token).
+      register:
+        descripcion: >
+          Ejecuta handshake, registra usuario y retorna JWT cifrado con cifradoStateFull.
+      login:
+        descripcion: >
+          Ejecuta handshake, autentica usuario y retorna JWT cifrado con cifradoStateFull.
+      refresh:
+        descripcion: >
+          Recibe refresh token, emite nuevo access token y lo cifra con AES del sistema statefull.
+      logout:
+        descripcion: >
+          Elimina sesión o refresh token asociado.
+    funciones:
+      - descifradoStateLess(body)
+      - descifradoStateFull(body)
+      - cifradoStateLess(body, AESuserSended)
+      - cifradoStateFull(body, idGenerado)
+
+  KMS:
+    descripcion: >
+      Sistema interno de gestión de claves.
+    funciones:
+      - decifrarKey(keyEncripted): Devuelve la clave decifrada.
+      - crearKeyUser(): Genera clave aleatoria y devuelve su versión cifrada y decifrada.
+    uso: >
+      Permite guardar datos cifrados en la base de datos del usuario, almacenando
+      la clave cifrada junto con los datos.
+
+  modelo_de_uso:
+    backend:
+      descripcion: >
+        El módulo se integra junto al main del proyecto. Los demás módulos pueden
+        usar las funciones desencriptar(), encriptar(), validar(), decifrarKey(), crearKeyUser().
+      configuracion: >
+        Se modifican los .env con las direcciones de las DBs, claves y tipo de cifrado a usar.
+      endpoints_automaticos:
+        - register
+        - login
+        - refresh
+        - logout
+      integracion: >
+        Se pueden usar funciones internas de cifrado y validación en cualquier módulo del backend.
+
+    frontend:
+      descripcion: >
+        Archivo integrable que ofrece funciones de login, registro, logout y llamadas API cifradas.
+      funciones:
+        - login(user/email, password, serverUrl)
+        - register(email, user, password, serverUrl)
+        - logout(serverUrl)
+        - refreshToken(jwt)
+        - apiCall(payload, url)
+      configuracion: >
+        Permite seleccionar el método de cifrado (statefull o stateless) por endpoint.
+
+  modelos_basicos:
+    dataPublic:
+      descripcion: >
+        Datos visibles para todo público.
+    dataPrivate:
+      descripcion: >
+        Datos privados accesibles solo por módulos específicos (bancarios, documentos, etc.),
+        cifrados con contraseña del usuario.
+    dataProtected:
+      descripcion: >
+        Datos accesibles por módulos del sistema, cifrados con KMS.
+
+    user:
+      estructura:
+        - datapublic: dataPublic
+        - dataprivate: dataPrivate
+        - dataprotected: dataProtected
+        - mail: string
+        - username: string
+        - password: string
+        - created: date
+        - isAdmin: bool
+
+  base_de_datos:
+    usuarios:
+      tipo: PostgreSQL
+      requerimiento: "Las queries deben ser directas."
+    redis:
+      uso: "Solo para statefull y almacenamiento temporal de claves AES y sesiones."
+
+  resumen:
+    descripcion: >
+      Framework modular de cifrado híbrido. Permite elegir por endpoint entre modo
+      statefull o stateless. Usa JWT, RSA(cypher) y AES. Administra sesiones,
+      refresh tokens y claves en Redis y PostgreSQL. Genera automáticamente claves
+      si no existen en el repositorio local.

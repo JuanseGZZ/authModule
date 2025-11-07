@@ -6,13 +6,13 @@ state full para apis:{
     cuando le llega la request va a usar descifradoStateFull(body) lo que va a consultar la db redis la AES correspondiente al ID para decifrar mensaje.
 }
 state less para apis:{
-    cuando le llega la reques va a usar descifradoStateLess(body) lo que va a usar la clave privada de la curva eliptica para decifrar la clave AES y luego decifrar el payload con esa clave AES y responder cifradamente con esa clave AES.
+    cuando le llega la reques va a usar descifradoStateLess(body) lo que va a usar la clave privada de la RSA(cypher) para decifrar la clave AES y luego decifrar el payload con esa clave AES y responder cifradamente con esa clave AES.
 }
 
 Front:
 la libreria va a tener todo en un auth.js
-- config(public key curva eliptic, urlServer)
-- cifradoStateLess(body) -> cifra el payload y lo mete en body, y le agrega la AES cifrada con RSARSAELIPTIC.
+- config(public key RSA(cypher), urlServer)
+- cifradoStateLess(body) -> cifra el payload y lo mete en body, y le agrega la AES cifrada con RSA(cypher).
 - cifradoStateFull(body, idGenerado) -> cifra el payload lo mete en el body y le mete al lado el idGenerado, cambia cada 15 min la clave.
 - descifradoStateLess(body) decifra con la clave aes que genero antes.
 - descifradoStateFull(body) decifra con la clave aes que pacto antes.
@@ -22,9 +22,9 @@ handshake{
 }
 
 Back:
-- configAuth(DBCredentialsRedis(idGenerado,refresh tokens,AESkeys),DBCredentialsUsers(data),keysCurvaEliptica,keysRSAFirma, bool de que sistema usara para las apis) -> db por si quiere usar el sistema de statefull.
-- api/hadnshake() -> decifra con la clave curva eliptic y agarra la clave AES del front y crea una sesion en la db(idGenerado:keyAES), luego le responde con el idGenerado cifrada con la AES, y con el JWT(refresh y acces token, y los headers y claims correspondientes).
-- descifradoStateLess(body) -> descifra el payload con la AES cifrada con RSA curva ELIPTIC(no es el mismo que la firma) y lo saca del body y lo retorna.
+- configAuth(DBCredentialsRedis(idGenerado,refresh tokens,AESkeys),DBCredentialsUsers(data),keysRSA(cypher),keysRSAFirma, bool de que sistema usara para las apis) -> db por si quiere usar el sistema de statefull.
+- api/hadnshake() -> decifra con la clave RSA(cypher) y agarra la clave AES del front y crea una sesion en la db(idGenerado:keyAES), luego le responde con el idGenerado cifrada con la AES, y con el JWT(refresh y acces token, y los headers y claims correspondientes).
+- descifradoStateLess(body) -> descifra el payload con la AES cifrada con RSA(cypher)(no es el mismo que la firma) y lo saca del body y lo retorna.
 - descifradoStateFull(body) -> descifra el payload con la AES obtenida por el id que vino como texto plano dentro del body al lado del payload, y retorna el payload.
 - cifradoStateLess(body,AESuserSended) -> cifra con la clave AES que le llego y con la cual decifro.
 - cifradoStateFull(body, idGenerado) -> cifra con la clave guardada en la db.
@@ -40,7 +40,7 @@ esta parte del framework va a darnos dos funciones:
 - crearKeyUser() -> va a crear una clave random y nos la va a dar cifrada y decifrada, asi puedo guardar las cifar con la clave y guardar la clave cifrada en la db del user.
 
 
-modelo de uso de framework:
+Modelo de uso de framework:
 En el back:
 Pones el modulo al lado del main y lo integras, y en el resto de modulos lo incluis y usas las cunciones en la api desencriptar(), encriptar(), validar(), decifrarKey(keyEncripted), crearKeyUser(). 
 Ademas cambias las configuraciones del modulo asi apuntan a las dbs, las claves, y aclaras que tipo de encriptaciones va a usar.
@@ -72,3 +72,15 @@ class user:
     password:string
     created:DATA
     isAdmin:bool
+
+
+OTROS DATOS:
+- la base de datos de los usuarios tiene que ser postgres, y tienen que ser querys directas las que haga.
+
+
+EN PALABRAS GENERALES:
+
+El sistema va a ser un framework que en el back va a tener para configurar(cambiando en .env) la direccion de las bases de datos, la redis para los statefull y la postgres para el resto de los models, la data y los usuarios, ademas va a tener la posiblilidad de que por endpoint usar el sistema que quieras depende de que funcion de decifrado y cifrados uses de las dos, ambos sistemas van a estar andando en conjunto. 
+Tanto en el sistema statefull como stateless en los auths se va a estar usando la base de datos porque va a estar guardando el refresh token del usuario cada vez que se loguea, o se registra, y eliminandolo si de desloguea.
+En el frontend se va a estar eligiendo como cifrar los payload para enviar a cada endpoint distinto que quizas usan distintos metodos, y todo con respecto a cual de las dos funciones usa para cifrar.
+El sistema debe de verificar si tiene los archivos de claves en el mismo repositorio en el que esta, y sino los va a generar.
