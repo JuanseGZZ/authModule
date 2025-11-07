@@ -26,7 +26,8 @@ def init() -> None:
     print("Módulo auth inicializado.\n")
 
 
-
+#hacer KMS
+#hacer DBconect
 
 
 # Permite ejecutar directamente desde la consola:
