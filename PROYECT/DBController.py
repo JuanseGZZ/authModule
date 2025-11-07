@@ -82,6 +82,3 @@ class DBC(metaclass=SingletonMeta):
         self.little_sql = LittleSql()
         self.redis = RedisDB()
         self.postgres = PostgresDB()
-
-
-dbc = DBC()

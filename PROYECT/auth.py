@@ -6,7 +6,7 @@ from ensureKeys import ensure_keys
 from PaketCipher import Packet
 from accesToken import AccessToken
 from refreshToken import RefreshToken
-
+from DBController import DBC
 
 def init() -> None:
     """
@@ -23,11 +23,14 @@ def init() -> None:
     print(f"RSA (sign) priv   : {keys.rsa_priv}")
     print(f"RSA (sign) pub    : {keys.rsa_pub}")
     print(f"AES master key    : {keys.aes_key}")
+
+    # conectamos las DB
+    dataBaseController = DBC()
+
+    #hacer KMS
+
     print("Módulo auth inicializado.\n")
 
-
-#hacer KMS
-#hacer DBconect
 
 
 # Permite ejecutar directamente desde la consola:
