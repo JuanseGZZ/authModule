@@ -22,14 +22,18 @@ from accesToken import AccessToken
 
 class Packet:
     def __init__(self, refresh_token: str, access_token: AccessToken, data: dict, aes_key: str, user_id: str):
+        #request format
+        #cifradas
         self.refresh_token = refresh_token
         self.access_token = access_token
         self.data = data
         self.aes_key = aes_key
+        self.iv = None
+        #no cifrada
         self.user_id = user_id
 
     # encriptador de AES
-    def encript(self) -> dict:
+    def encriptAES(self) -> dict:
         """
         Encripta refresh_token, access_token, data y user_id con AES-GCM.
         Devuelve un diccionario con iv y ciphertext en base64url.
@@ -54,27 +58,18 @@ class Packet:
         }
     
     # desencriptamos algo con un aes espesifica
-    def decrypt_aes_into_self(self, enc: Dict[str, str], aes_key: str | None = None) -> dict:
+    @staticmethod
+    def decryptAES(enc: Dict[str, str], aes_key: str | None = None) -> dict:
         if "iv" not in enc or "ciphertext" not in enc:
             raise ValueError("enc debe incluir 'iv' y 'ciphertext'")
 
-        key_str = aes_key if aes_key is not None else self.aes_key
-        key_bytes = key_str.encode()[:32].ljust(32, b"0")
+        key_bytes = aes_key.encode()[:32].ljust(32, b"0")
         iv = _b64u_dec(enc["iv"])
         ct = _b64u_dec(enc["ciphertext"])
 
         aesgcm = AESGCM(key_bytes)
         plaintext = aesgcm.decrypt(iv, ct, None)
         data = json.loads(plaintext.decode("utf-8"))
-
-        # reconstruir el objeto AccessToken
-        from accesToken import AccessToken
-        at = AccessToken.from_json(data["access_token"])
-
-        self.refresh_token = data["refresh_token"]
-        self.access_token = at
-        self.data = data["data"]
-        self.user_id = data["user_id"]
 
         return data
     
@@ -103,10 +98,8 @@ class Packet:
         )
 
         data = json.loads(plaintext.decode("utf-8"))
-        for k in ("username", "password", "aeskey","email","iv"):
-            if k not in data:
-                data[k] = None
-        return {"username": data["username"], "password": data["password"], "aeskey": data["aeskey"], "email": data["email"],"iv": data["iv"]}
+        return data
+    
     
 #simulador de mensaje de front 
 def rsa_encrypt_b64u_with_public(payload: Dict[str, str]) -> str:
@@ -137,7 +130,7 @@ def test_paketcipher_rsa_roundtrip() -> None:
     en base64url (ciphertext_b64u) y luego usa Packet.decrypt_with_rsa (estático)
     para validar el round-trip.
     """
-    sample = {"username": "alice", "password": "S3cr3t!", "aeskey": "0123456789abcdef0123456789abcdef"}
+    sample = {"username": "alice", "password": "S3cr3t!", "aeskey": "0123456789abcdef0123456789abcdef","alfajor":"123"}
     ciphertext_b64u = rsa_encrypt_b64u_with_public(sample)
     recovered = Packet.decrypt_with_rsa(ciphertext_b64u)
 
@@ -159,19 +152,15 @@ def _test_aes_with_access_token_object():
         user_id="213asd3"
     )
 
-    enc = pkt.encript()
-
+    enc = pkt.encriptAES()
     print(enc)
 
-    pkt.refresh_token = ""
-    pkt.access_token = None
-    pkt.data = {}
-    pkt.user_id = ""
+    data = Packet.decryptAES(enc, aes_key=pkt.aes_key)
+    print(data)
 
-    print(pkt.data)
-    pkt.decrypt_aes_into_self(enc)
-    print(pkt.data)
-    assert isinstance(pkt.access_token, AccessToken)
-    print("OK AES-GCM decrypt_into_self con AccessToken objeto ✓")
+    assert data["user_id"] == "213asd3"
+    assert data["data"]["ok"] is True
+    print("OK AES-GCM decrypt (estático) ✓")
 
-#_test_aes_with_access_token_object()
+
+_test_aes_with_access_token_object()
