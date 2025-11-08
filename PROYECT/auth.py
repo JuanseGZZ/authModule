@@ -9,8 +9,6 @@ from refreshToken import RefreshToken
 from DBController import DBC
 from KMS import KMS
 
-
-
 def init() -> None:
     """
     Inicializa el entorno de autenticación:
@@ -27,10 +25,31 @@ def init() -> None:
     print(f"RSA (sign) pub    : {keys.rsa_pub}")
     print(f"AES master key    : {keys.aes_key}")
 
+#funcs con stateful handshake, luego se hace api y el proyecto las hereda.
+def register(request) -> Packet:
+    print("register")
 
+def login(request) -> Packet:
+    print("login")
 
+def unlogin(request) -> None:
+    print("un login")
 
+def refresh(request) -> Packet:
+    print("refresh acces token")
 
+# funcs para exportar 
+# stateLess
+def cyphStateLess(request):
+    print("cph")
+def uncyphStateLess(request):
+    print("cph")
+
+# stateFull
+def cyphStateFull(request):
+    print("cph")
+def uncyphStateFull(request):
+    print("cph")
 
 
 

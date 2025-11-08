@@ -103,10 +103,10 @@ class Packet:
         )
 
         data = json.loads(plaintext.decode("utf-8"))
-        for k in ("username", "password", "aeskey","email"):
+        for k in ("username", "password", "aeskey","email","iv"):
             if k not in data:
                 data[k] = None
-        return {"username": data["username"], "password": data["password"], "aeskey": data["aeskey"], "email": data["email"]}
+        return {"username": data["username"], "password": data["password"], "aeskey": data["aeskey"], "email": data["email"],"iv": data["iv"]}
     
 #simulador de mensaje de front 
 def rsa_encrypt_b64u_with_public(payload: Dict[str, str]) -> str:
