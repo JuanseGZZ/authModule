@@ -20,7 +20,7 @@ usuarios: list[User] = []
 sesionesRedisJWT: list[Dict[str, str]] = []  # [{"email": ..., "refreshToken": ...}]
 
 # Simulación de sesiones stateful (sólo si está habilitado)
-sesionesRedisStateFull: Dict[str, Dict[str, str]] = {}  # {"user_id": {"aesKey": ..., "until": ...}}
+sesionesRedisStateFull: Dict[str, Dict[str, str]] = {}  # {"user_id": {"aesKey": str, "refreshToken": str, "until": str}}
 
 # Cargamos el flag desde .env
 STATEFULL_ENABLED = os.getenv("STATEFULL_ENABLED", "false").lower() == "true"

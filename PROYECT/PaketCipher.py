@@ -29,8 +29,8 @@ class Packet:
         self.data = data
         self.aes_key = aes_key
         self.iv = None
-        #no cifrada
-        self.user_id = user_id
+        #no cifrada 
+        self.user_id = user_id # 0 significa que usa stateless, mas de 0 statefull. en realidad va a estar explicito en la func que usen en el modulo pero sirve para avisar
 
     # encriptador de AES
     def encriptAES(self) -> dict:
