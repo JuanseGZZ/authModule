@@ -1,0 +1,1 @@
+#es para llamar a las func de auth, pero poner aca las verificaciones de que traigan x cosa los requests
