@@ -7,6 +7,9 @@ from PaketCipher import Packet
 from accesToken import AccessToken
 from refreshToken import RefreshToken
 from DBController import DBC
+from KMS import KMS
+
+
 
 def init() -> None:
     """
@@ -24,15 +27,20 @@ def init() -> None:
     print(f"RSA (sign) pub    : {keys.rsa_pub}")
     print(f"AES master key    : {keys.aes_key}")
 
-    # conectamos las DB
-    dataBaseController = DBC()
 
-    #hacer KMS
 
-    print("Módulo auth inicializado.\n")
+
+
+
 
 
 
 # Permite ejecutar directamente desde la consola:
 if __name__ == "__main__":
+    # cargamos cosas 
     init()
+    # conectamos las DB
+    dataBaseController = DBC()
+    # instanciamos el Key Management System 
+    kms = KMS()
+    print("Módulo auth inicializado.\n")
