@@ -152,8 +152,41 @@ if __name__ == "__main__":
     print("Módulo auth inicializado.\n")
 
 
-def testRegister():
-    print("testing register")
+from PaketCipher import rsa_encrypt_b64u_with_public
+import json
+
+def test_register_real():
+    # === 1) SIMULAR FRONT END ===
+    # La aeskey la inventa el front
+    aes_key = "0123456789abcdef0123456789abcdef"
+
+    handshake_payload = {
+        "username": "mike",
+        "password": "contraseña123",
+        "email": "mike@example.com",
+        "aeskey": aes_key
+    }
+
+    # ciframos con RSA pública → base64url
+    handshake_b64u = rsa_encrypt_b64u_with_public(handshake_payload)
+
+    # request real de front → backend register()
+    request_json = {
+        "handshake_b64u": handshake_b64u
+    }
+
+    # === 2) EJECUTAR REGISTER ===
+    encrypted_packet = register(request_json)
+
+    print("\n=== PACKET CIFRADO QUE DEVUELVE EL REGISTER ===")
+    print(json.dumps(encrypted_packet, indent=4))
+
+    # === 3) DESCIFRAR EL PAQUETE ===
+    dec = Packet.decryptAES(encrypted_packet, aes_key=aes_key)
+
+    print("\n=== PACKET DESCIFRADO ===")
+    print(json.dumps(dec, indent=4))
+# Ejecutar test:
+test_register_real()
 
 
-testRegister()
