@@ -9,6 +9,10 @@ from KMS import KMS, cifrar_con_user_aes, descifrar_con_user_aes
 
 kms = KMS()
 
+# aesky = kms.decifrarKey(nuevo.aesEncriper)
+# cifrar_con_user_aes(aeskey,datoACifrar)
+# descifrar_con_user_aes(aeskey,datoADescifrar)
+
 def hash_password(password: str) -> str:
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
     return hashed.decode("utf-8")
@@ -32,15 +36,16 @@ class userRepository:
             if usuario.mail == email:
                 return "mail esta en uso"
             
-        keys = kms.crearKeyUser()
+        keys = kms.crearKeyUser() #unica vez cuando se crea
 
         encripted = keys.get("encrypted_b64")
+        encripter = keys.get("plain_b64")
         #print("Non encripted key, in fact encripter key:", keys.get("plain_b64"))
         #print("must be the same as non encripted",kms.decifrarKey(encripted))
 
         # Crear usuario sólo con los datos base
         usuario = User(
-            mail=email,
+            mail=cifrar_con_user_aes(encripter,email),
             username=username,
             password=hash_password(password),
             is_admin=is_admin,
@@ -103,7 +108,7 @@ def test_creacion_usuario():
         print("Error:", nuevo)
         return
     print("Usuario creado correctamente:\n")
-    print("Email:", nuevo.mail)
+    print("Email:", descifrar_con_user_aes(encripterAes,nuevo.mail))
     print("Username:", nuevo.username)
     print("Password:",nuevo.password)
     print("AesEncripted:",nuevo.aesEncriper)

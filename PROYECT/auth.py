@@ -9,7 +9,8 @@ from PaketCipher import Packet
 from accesToken import AccessToken
 from refreshToken import RefreshToken
 from DBController import DBC
-from KMS import KMS
+from KMS import KMS, descifrar_con_user_aes, cifrar_con_user_aes
+from userRepository import userRepository as UR
 
 from typing import Dict, Any
 
@@ -71,8 +72,8 @@ def register(request_json: Dict[str, Any]) -> Dict[str, str]:
     # sino lo dejamos en 0 lo que representa que ese feuter esta apagado
     # luego el front lo guarda y lo usa para enviarlo a los endpoints como unica cosa decifrada para que decifre las cosas, si se vencio le aviza 
 
-    # 3) (ejemplo) alta usuario en tu store simulado    
-    # usuarios.append(User(username=username, email=email, ...))  # si ya tenés tu modelo
+    # 3) alta usuario en tu store simulado    
+    UR.crearUsuario(email,username,password,False) 
 
     # 4) Branch según stateful
     if STATEFULL_ENABLED:
@@ -86,7 +87,7 @@ def register(request_json: Dict[str, Any]) -> Dict[str, str]:
         # refresh token según tu implementación
         rt = RefreshToken(user_id).getRefres()
 
-        sesionesRedisStateFull[user_id] = {
+        UR.sesionesRedisStateFull[user_id] = { # en cada mensaje que envian lo mandan sin cifrar
             "aesKey": aes_key,
             "refreshToken": rt,
             "until": until_iso
@@ -97,16 +98,22 @@ def register(request_json: Dict[str, Any]) -> Dict[str, str]:
         rt = None
         until_iso = None
 
-    # 5) (opcional) generar AccessToken/Refresh y cifrar respuesta con AES-GCM del cliente:
+    # 5) armamos acces token para el usuario, siempre se usan accesToken
+    AT = AccessToken(sub=username, role="user", jti=str(uuid.uuid4()))
 
-    return {
+    # planteamos data
+    data = {
         "status": "ok",
-        "user_id": user_id,
-        "stateful": STATEFULL_ENABLED,
-        "refreshToken": rt,
-        "until": until_iso
     }
 
+    # generamos paquete 
+    packet = Packet(refresh_token=rt,access_token=AT,data=data,aes_key=aes_key,user_id=user_id)
+
+    # lo encriptamos y formateamos
+    encriptedPacket = packet.encriptAES()
+
+    # retornamos (no esta listo el return, porque no esta cifrando el payload) debemos retornar con la aes
+    return encriptedPacket
 
 
 def login(request_json: Dict[str, Any]) -> Dict[str, str]:
@@ -139,7 +146,14 @@ if __name__ == "__main__":
     # cargamos cosas 
     init()
     # conectamos las DB
-    dataBaseController = DBC()
+    #dataBaseController = DBC()
     # instanciamos el Key Management System 
     kms = KMS()
     print("Módulo auth inicializado.\n")
+
+
+def testRegister():
+    print("testing register")
+
+
+testRegister()

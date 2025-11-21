@@ -48,7 +48,6 @@ class Packet:
             "refresh_token": self.refresh_token,
             "access_token": self.access_token.to_json(),
             "data": self.data,
-            "user_id": self.user_id
         }
 
         plaintext = json.dumps(payload, separators=(",", ":")).encode("utf-8")
@@ -56,7 +55,8 @@ class Packet:
 
         out: dict = {
             "iv": base64.urlsafe_b64encode(iv).decode().rstrip("="),
-            "ciphertext": base64.urlsafe_b64encode(ciphertext).decode().rstrip("=")
+            "ciphertext": base64.urlsafe_b64encode(ciphertext).decode().rstrip("="),
+            "user_id": self.user_id
         }
 
         if self.files:
@@ -230,7 +230,7 @@ def test_aes_packet_with_files() -> None:
 
     # --- asserts básicos ---
     assert dec["data"]["ok"] is True
-    assert dec["user_id"] == "user-123"
+    assert enc["user_id"] == "user-123"
 
     # verificamos que haya files y que el contenido coincida
     assert "files" in dec
