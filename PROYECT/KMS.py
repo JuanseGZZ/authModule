@@ -6,6 +6,22 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 load_dotenv()
 
+# falta hacer estilo api, tanto la llamada como la recepcion para que sea instancia kms, o llamador, tambien falta poner en el env
+
+def cifrar_con_user_aes(aes_b64: str, data: str) -> str:
+    key = base64.b64decode(aes_b64)        # la key real
+    aesgcm = AESGCM(key)
+    nonce = os.urandom(12)                 # 12 bytes para GCM
+    ct = aesgcm.encrypt(nonce, data.encode("utf-8"), None)
+    return base64.b64encode(nonce + ct).decode("utf-8")
+
+def descifrar_con_user_aes(aes_b64: str, payload_b64: str) -> str:
+    key = base64.b64decode(aes_b64)
+    aesgcm = AESGCM(key)
+    payload = base64.b64decode(payload_b64)
+    nonce, ct = payload[:12], payload[12:]
+    pt = aesgcm.decrypt(nonce, ct, None)
+    return pt.decode("utf-8")
 
 class SingletonMeta(type):
     _instances = {}

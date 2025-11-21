@@ -3,6 +3,15 @@ from DBController import RedisDB
 from typing import Dict, Any
 from userModels import User
 from datetime import datetime
+import bcrypt
+
+from KMS import KMS, cifrar_con_user_aes, descifrar_con_user_aes
+
+kms = KMS()
+
+def hash_password(password: str) -> str:
+    hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+    return hashed.decode("utf-8")
 
 # para gestionar peticiones a db y que te devuelva objets user
 class userRepository:
@@ -18,13 +27,27 @@ class userRepository:
         pass
 
     @staticmethod
-    def crearUsuario(email:str, username:str, password:str) -> User:
+    def crearUsuario(email: str, username: str, password: str, is_admin: bool = False) -> User:
         for usuario in userRepository.usuarios:
             if usuario.mail == email:
                 return "mail esta en uso"
             
+        keys = kms.crearKeyUser()
 
-        usuario = User(email,username,password)
+        encripted = keys.get("encrypted_b64")
+        #print("Non encripted key, in fact encripter key:", keys.get("plain_b64"))
+        #print("must be the same as non encripted",kms.decifrarKey(encripted))
+
+        # Crear usuario sólo con los datos base
+        usuario = User(
+            mail=email,
+            username=username,
+            password=hash_password(password),
+            is_admin=is_admin,
+            aesEncriper=encripted # es la clave que encripta todo en la database
+        )
+
+        #va a db, en este caso aca por el momenot
         userRepository.usuarios.append(usuario)
         return usuario
     
@@ -40,3 +63,70 @@ class userRepository:
     @staticmethod
     def checkSFToken(user:User, id_user):
         print("cheking")
+
+    @staticmethod
+    def getUser(email:str,username:str,password:str):
+        print("trae usuario")
+
+    @staticmethod
+    def updateUserOnDB(user:User):
+        print("Updatea el objeto en dbs")
+
+    @staticmethod
+    def getPrivateData(user:User,password:str,dataName:str):
+        print("tae un paramepro protegido por password, usa dataname para decir cual")
+
+
+def test_creacion_usuario():
+    print("=== TEST CREAR USUARIO ===")
+    repo = userRepository()
+    nuevo = repo.crearUsuario(
+        email="test@example.com",
+        username="tester",
+        password="1234"
+    )
+
+    encripterAes = kms.decifrarKey(nuevo.aesEncriper)
+
+    # ---- DATOS DE TEST (public, private, protected) ----
+    # públicos
+    nuevo.datapublic.nombre = cifrar_con_user_aes(encripterAes,"tester")
+    nuevo.datapublic.avatar_url = f"https://example.com/avatars/{"tester"}"
+    nuevo.datapublic.bio = "Bio de prueba para el usuario."
+
+    # privados (cifrados con la contraseña en la implementación real)
+    nuevo.dataprivate.documento = "12345678"
+    nuevo.dataprivate.datos_bancarios = "ALIAS.PRUEBA.BANCO"
+    nuevo.dataprivate.direccion = "Dirección de prueba 123"
+
+    # protegidos (cifrados con KMS en la implementación real)
+    nuevo.dataprotected.metricas = "{}"          # JSON de métricas de ejemplo
+    nuevo.dataprotected.tokens = "token_prueba"
+    nuevo.dataprotected.preferencias = '{"theme": "dark"}'
+
+    if isinstance(nuevo, str):
+        print("Error:", nuevo)
+        return
+    print("Usuario creado correctamente:\n")
+    print("Email:", nuevo.mail)
+    print("Username:", nuevo.username)
+    print("Password:",nuevo.password)
+    print("AesEncripted:",nuevo.aesEncriper)
+    print("Admin:", nuevo.is_admin)
+    print("Fecha creación:", nuevo.created)
+    print("\n--- DATA PUBLICA ---")
+    print("Nombre:", descifrar_con_user_aes(encripterAes,nuevo.datapublic.nombre))
+    print("Avatar URL:", nuevo.datapublic.avatar_url)
+    print("Bio:", nuevo.datapublic.bio)
+    print("\n--- DATA PRIVADA ---")
+    print("Documento:", nuevo.dataprivate.documento)
+    print("Datos bancarios:", nuevo.dataprivate.datos_bancarios)
+    print("Dirección:", nuevo.dataprivate.direccion)
+    print("\n--- DATA PROTEGIDA ---")
+    print("Métricas:", nuevo.dataprotected.metricas)
+    print("Tokens:", nuevo.dataprotected.tokens)
+    print("Preferencias:", nuevo.dataprotected.preferencias)
+    print("\nLISTA DE USUARIOS EN REPO:", len(userRepository.usuarios))
+    print("=================================\n")
+
+test_creacion_usuario()

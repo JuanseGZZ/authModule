@@ -19,9 +19,10 @@ def _b64u_dec(s: str) -> bytes:
     return base64.urlsafe_b64decode(s + pad)
 
 from accesToken import AccessToken
+from FilesCipherHandler import FilesCipherHandler
 
 class Packet:
-    def __init__(self, refresh_token: str, access_token: AccessToken, data: dict, aes_key: str, user_id: str):
+    def __init__(self, refresh_token: str, access_token: AccessToken, data: dict, aes_key: str, user_id: str,files: list[dict] | None = None):
         #request format
         #cifradas
         self.refresh_token = refresh_token
@@ -31,6 +32,7 @@ class Packet:
         self.iv = None
         #no cifrada 
         self.user_id = user_id # 0 significa que usa stateless, mas de 0 statefull. en realidad va a estar explicito en la func que usen en el modulo pero sirve para avisar
+        self.files: list[dict] = files or []
 
     # encriptador de AES
     def encriptAES(self) -> dict:
@@ -52,10 +54,15 @@ class Packet:
         plaintext = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         ciphertext = aesgcm.encrypt(iv, plaintext, None)
 
-        return {
+        out: dict = {
             "iv": base64.urlsafe_b64encode(iv).decode().rstrip("="),
             "ciphertext": base64.urlsafe_b64encode(ciphertext).decode().rstrip("=")
         }
+
+        if self.files:
+            out["files"] = FilesCipherHandler.encrypt_files(self.files, self.aes_key)
+
+        return out
     
     # desencriptamos algo con un aes espesifica
     @staticmethod
@@ -70,6 +77,15 @@ class Packet:
         aesgcm = AESGCM(key_bytes)
         plaintext = aesgcm.decrypt(iv, ct, None)
         data = json.loads(plaintext.decode("utf-8"))
+
+         # --- archivos (si los hay) ---
+        enc_files = enc.get("files") or []
+        if enc_files:
+            files = FilesCipherHandler.decrypt_files(enc_files, aes_key)
+            data["files"] = files
+        else:
+            # por comodidad, siempre devolvemos "files"
+            data.setdefault("files", [])
 
         return data
     
@@ -163,4 +179,66 @@ def _test_aes_with_access_token_object():
     print("OK AES-GCM decrypt (estático) ✓")
 
 
-_test_aes_with_access_token_object()
+#_test_aes_with_access_token_object()
+
+
+def test_aes_packet_with_files() -> None:
+    """
+    Test de round-trip AES:
+      - crea un Packet con data + 1 archivo
+      - cifra con encriptAES()
+      - descifra con decryptAES()
+      - verifica que todo coincida
+    """
+    import uuid
+    import base64
+
+    # misma longitud que estás usando (32 chars -> 256 bits después del fill)
+    aes_key = "0123456789abcdef0123456789abcdef"
+
+    # AccessToken de prueba
+    at = AccessToken(sub="user123", role="admin", jti=str(uuid.uuid4()))
+
+    # archivo en PLANO (lo que usaría FilesCipherHandler.encrypt_files)
+    original_bytes = b"hola mundo"
+    files_plain = [
+        {
+            "id": "file_1",
+            "file_name": "ejemplo.txt",
+            "mime": "text/plain",
+            "data_b64": base64.b64encode(original_bytes).decode("utf-8"),
+        }
+    ]
+
+    # armamos el paquete
+    pkt = Packet(
+        refresh_token="rtok_123",
+        access_token=at,
+        data={"ok": True, "msg": "testing aes"},
+        aes_key=aes_key,
+        user_id="user-123",
+        files=files_plain,
+    )
+
+    # ciframos
+    enc = pkt.encriptAES()
+    print("ENC (paquete cifrado):", enc)
+
+    # desciframos con la función que unifica todo
+    dec = Packet.decryptAES(enc, aes_key=aes_key)
+    print("DEC (paquete decifrado):", dec)
+
+    # --- asserts básicos ---
+    assert dec["data"]["ok"] is True
+    assert dec["user_id"] == "user-123"
+
+    # verificamos que haya files y que el contenido coincida
+    assert "files" in dec
+    assert len(dec["files"]) == 1
+    file_dec = dec["files"][0]
+    recovered = base64.b64decode(file_dec["data_b64"].encode("utf-8"))
+    assert recovered == original_bytes
+
+    print("✅ Test AES Packet + Files OK")
+
+test_aes_packet_with_files()

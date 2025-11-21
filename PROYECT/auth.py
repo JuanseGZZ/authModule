@@ -35,13 +35,13 @@ def init() -> None:
     print(f"RSA (sign) pub    : {keys.rsa_pub}")
     print(f"AES master key    : {keys.aes_key}")
 
-    print(f"🧠 STATEFULL_ENABLED = {STATEFULL_ENABLED}")
+    print(f"STATEFULL_ENABLED = {STATEFULL_ENABLED}")
     if STATEFULL_ENABLED:
         global sesionesRedisStateFull
         sesionesRedisStateFull = {}
-        print("🧩 Sesiones stateful activadas (Redis simulado en memoria).")
+        print("Sesiones stateful activadas (Redis simulado en memoria).")
     else:
-        print("⚙️ Modo stateful deshabilitado — no se crearán sesiones persistentes.")
+        print("Modo stateful deshabilitado — no se crearán sesiones persistentes.")
 
 #funcs con stateful handshake, luego se hace api y el proyecto las hereda.
 def register(request_json: Dict[str, Any]) -> Dict[str, str]:
@@ -76,7 +76,7 @@ def register(request_json: Dict[str, Any]) -> Dict[str, str]:
 
     # 4) Branch según stateful
     if STATEFULL_ENABLED:
-        print("🧩 Modo stateful activo: creando sesión en memoria...")
+        print("Modo stateful activo: creando sesión en memoria...")
         user_id = str(uuid.uuid4())
 
         # until = ahora + N minutos (Z en ISO8601)
@@ -92,7 +92,7 @@ def register(request_json: Dict[str, Any]) -> Dict[str, str]:
             "until": until_iso
         }
     else:
-        print("⚙️ Modo stateful deshabilitado: no se crearán sesiones persistentes.")
+        print("Modo stateful deshabilitado: no se crearán sesiones persistentes.")
         user_id = "0"
         rt = None
         until_iso = None
@@ -118,7 +118,7 @@ def unlogin(request_json: Dict[str, Any]) -> Dict[str, str]:
 def refresh(request_json: Dict[str, Any]) -> Dict[str, str]:
     print("refresh acces token")
 
-# funcs para exportar 
+# funcs para exportar, cuando importen esta libreria, ademas de importar los paths prehechos pueden usar estas funciones para otros endpoint para al inicio y al final del endpoit cifrar o decifrar como deberian hacerlo, bajo el primcipio que haya querido tomar ese endpoint.
 # stateLess
 def cyphStateLess(request):
     print("cph")

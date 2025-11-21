@@ -51,7 +51,8 @@ class User:
                  mail: str = "",
                  username: str = "",
                  password: str = "",
-                 is_admin: bool = False):
+                 is_admin: bool = False,
+                 aesEncriper: str = ""):
 
         self.datapublic = datapublic or DataPublic()
         self.dataprivate = dataprivate or DataPrivate()
@@ -61,6 +62,7 @@ class User:
         self.password = password
         self.created = datetime.utcnow()
         self.is_admin = is_admin
+        self.aesEncriper = aesEncriper
 
     def __repr__(self):
         return f"<User username={self.username!r} mail={self.mail!r} admin={self.is_admin}>"
