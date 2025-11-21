@@ -1,13 +1,17 @@
+import os
 from DBController import PostgresDB
 from DBController import RedisDB
 from typing import Dict, Any
 from userModels import User
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import bcrypt
 
 from KMS import KMS, cifrar_con_user_aes, descifrar_con_user_aes
 
 kms = KMS()
+
+# para los dias del refresh
+JWT_REFRESH_TTL_DAYS = int(os.getenv("JWT_REFRESH_TTL_DAYS", "30"))
 
 # aesky = kms.decifrarKey(nuevo.aesEncriper)
 # cifrar_con_user_aes(aeskey,datoACifrar)
@@ -17,13 +21,16 @@ def hash_password(password: str) -> str:
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
     return hashed.decode("utf-8")
 
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
 # para gestionar peticiones a db y que te devuelva objets user
 class userRepository:
 
     #Lista de usuarios registrados simulada
     usuarios: list[User] = []
     # Simulación de sesiones JWT (stateless)
-    sesionesRedisJWT: list[Dict[str, str]] = []  # [{"email": ..., "refreshToken": ..., "until": }]
+    sesionesRedisJWT: Dict[str, Dict[str, Any]] = {}  # [{"email": ..., "refreshToken": ..., "until": }]
     # Simulación de sesiones stateful (sólo si está habilitado)
     sesionesRedisStateFull: Dict[str, Dict[str, str]] = {}  # {"email": {"user_id":int,"aesKey": str, "refreshToken": str, "until": str}}
 
@@ -80,6 +87,28 @@ class userRepository:
     @staticmethod
     def getPrivateData(user:User,password:str,dataName:str):
         print("tae un paramepro protegido por password, usa dataname para decir cual")
+
+    @staticmethod
+    def guardar_sesion_refresh(email: str, refresh_token: str) -> None:
+        """
+        Guarda la sesión de refresh ligada al email.
+        until = ahora + JWT_REFRESH_TTL_DAYS (en días).
+        """
+        until_dt = _now_utc() + timedelta(days=JWT_REFRESH_TTL_DAYS)
+        # lo podés guardar como datetime o ISO, según cómo lo vayas a leer
+        userRepository.sesionesRedisJWT[email] = {
+            "refreshToken": refresh_token,
+            "until": until_dt,    # o until_dt.isoformat() si preferís string
+        }
+
+    @staticmethod
+    def refresh_valido(email: str, refresh_token: str) -> bool:
+        ses = userRepository.sesionesRedisJWT.get(email)
+        if not ses:
+            return False
+        if ses["refreshToken"] != refresh_token:
+            return False
+        return _now_utc() < ses["until"]
 
 
 def test_creacion_usuario():

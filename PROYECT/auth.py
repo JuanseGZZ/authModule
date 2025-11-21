@@ -94,9 +94,8 @@ def register(request_json: Dict[str, Any]) -> Dict[str, str]:
         # refresh token según tu implementación
         rt = RefreshToken(user_id).getRefres()
 
-        UR.sesionesRedisStateFull[user_id] = { # en cada mensaje que envian lo mandan sin cifrar
+        UR.sesionesRedisStateFull[user_id] = { # en cada mensaje que envian lo mandan sin cifrar, PASARLO A STATICFUNTION
             "aesKey": aes_key,
-            "refreshToken": rt,
             "until": until_iso
         }
     else:
@@ -118,6 +117,9 @@ def register(request_json: Dict[str, Any]) -> Dict[str, str]:
 
     # lo encriptamos y formateamos
     encriptedPacket = packet.encriptAES()
+
+    #cargamos la sesion de jwt del refresh
+    UR.guardar_sesion_refresh(email=email,refresh_token=rt)
 
     # retornamos (no esta listo el return, porque no esta cifrando el payload) debemos retornar con la aes
     return encriptedPacket
@@ -196,7 +198,9 @@ def test_register_real():
     print(json.dumps(dec, indent=4))
 
     print("\n=== USER TESTING ===")
-    print("Usuarios registrados: ",UR.sesionesRedisStateFull)
+    print("Usuarios logueados: ",UR.sesionesRedisStateFull)
+    print("Usuarios RefreshToken: ",UR.sesionesRedisJWT)
+    print("Usuarios registrados: ",UR.usuarios)
 # Ejecutar test:
 test_register_real()
 
