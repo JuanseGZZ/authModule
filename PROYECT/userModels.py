@@ -15,20 +15,6 @@ class DataPublic:
     def __repr__(self):
         return f"<DataPublic nombre={self.nombre!r}>"
 
-
-class DataPrivate:
-    """Datos sensibles cifrados con la contraseña del usuario."""
-    def __init__(self, documento: Optional[str] = None,
-                 datos_bancarios: Optional[str] = None,
-                 direccion: Optional[str] = None):
-        self.documento = documento
-        self.datos_bancarios = datos_bancarios
-        self.direccion = direccion
-
-    def __repr__(self):
-        return f"<DataPrivate documento={'***' if self.documento else None}>"
-
-
 class DataProtected:
     """Datos cifrados con el KMS, visibles por módulos del sistema."""
     def __init__(self, metricas: Optional[str] = None,
@@ -46,7 +32,6 @@ class User:
     """Modelo de usuario base del framework."""
     def __init__(self,
                  datapublic: Optional[DataPublic] = None,
-                 dataprivate: Optional[DataPrivate] = None,
                  dataprotected: Optional[DataProtected] = None,
                  mail: str = "",
                  username: str = "",
@@ -55,7 +40,6 @@ class User:
                  aesEncriper: str = ""):
 
         self.datapublic = datapublic or DataPublic()
-        self.dataprivate = dataprivate or DataPrivate()
         self.dataprotected = dataprotected or DataProtected()
         self.mail = mail
         self.username = username

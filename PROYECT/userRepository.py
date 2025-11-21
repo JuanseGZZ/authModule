@@ -90,19 +90,14 @@ def test_creacion_usuario():
 
     # ---- DATOS DE TEST (public, private, protected) ----
     # públicos
-    nuevo.datapublic.nombre = cifrar_con_user_aes(encripterAes,"tester")
+    nuevo.datapublic.nombre = "tester"
     nuevo.datapublic.avatar_url = f"https://example.com/avatars/{"tester"}"
     nuevo.datapublic.bio = "Bio de prueba para el usuario."
 
-    # privados (cifrados con la contraseña en la implementación real)
-    nuevo.dataprivate.documento = "12345678"
-    nuevo.dataprivate.datos_bancarios = "ALIAS.PRUEBA.BANCO"
-    nuevo.dataprivate.direccion = "Dirección de prueba 123"
-
     # protegidos (cifrados con KMS en la implementación real)
-    nuevo.dataprotected.metricas = "{}"          # JSON de métricas de ejemplo
-    nuevo.dataprotected.tokens = "token_prueba"
-    nuevo.dataprotected.preferencias = '{"theme": "dark"}'
+    nuevo.dataprotected.metricas = cifrar_con_user_aes(encripterAes,"")          # JSON de métricas de ejemplo
+    nuevo.dataprotected.tokens = cifrar_con_user_aes(encripterAes,"token_prueba")
+    nuevo.dataprotected.preferencias = cifrar_con_user_aes(encripterAes,'{"theme": "dark"}')
 
     if isinstance(nuevo, str):
         print("Error:", nuevo)
@@ -115,16 +110,12 @@ def test_creacion_usuario():
     print("Admin:", nuevo.is_admin)
     print("Fecha creación:", nuevo.created)
     print("\n--- DATA PUBLICA ---")
-    print("Nombre:", descifrar_con_user_aes(encripterAes,nuevo.datapublic.nombre))
+    print("Nombre:", nuevo.datapublic.nombre)
     print("Avatar URL:", nuevo.datapublic.avatar_url)
     print("Bio:", nuevo.datapublic.bio)
-    print("\n--- DATA PRIVADA ---")
-    print("Documento:", nuevo.dataprivate.documento)
-    print("Datos bancarios:", nuevo.dataprivate.datos_bancarios)
-    print("Dirección:", nuevo.dataprivate.direccion)
     print("\n--- DATA PROTEGIDA ---")
-    print("Métricas:", nuevo.dataprotected.metricas)
-    print("Tokens:", nuevo.dataprotected.tokens)
+    print("Métricas:", descifrar_con_user_aes(encripterAes,nuevo.dataprotected.metricas))
+    print("Tokens:", descifrar_con_user_aes(encripterAes,nuevo.dataprotected.tokens))
     print("Preferencias:", nuevo.dataprotected.preferencias)
     print("\nLISTA DE USUARIOS EN REPO:", len(userRepository.usuarios))
     print("=================================\n")
