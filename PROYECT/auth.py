@@ -16,6 +16,8 @@ from typing import Dict, Any
 
 from userModels import User
 
+DEBUG = False
+
 # Cargamos el flag desde .env
 STATEFULL_ENABLED = os.getenv("STATEFULL_ENABLED", "false").lower() == "true"
 STATEFULL_TOKEN_TIME_MIN = int(os.getenv("STATEFULL_TOKEN_TIME_MIN", "15"))
@@ -27,22 +29,26 @@ def init() -> None:
     - Carga las variables de entorno (.env).
     - Informa las rutas de las claves creadas o encontradas.
     """
-    print("🔑 Iniciando módulo de autenticación...")
+    if DEBUG:
+        print("🔑 Iniciando módulo de autenticación...")
     keys = ensure_keys()
-    print("✅ Claves verificadas o generadas correctamente.")
-    print(f"RSA (enc) privada: {keys.ec_priv}")
-    print(f"RSA (enc) pública : {keys.ec_pub}")
-    print(f"RSA (sign) priv   : {keys.rsa_priv}")
-    print(f"RSA (sign) pub    : {keys.rsa_pub}")
-    print(f"AES master key    : {keys.aes_key}")
+    if DEBUG:
+        print("✅ Claves verificadas o generadas correctamente.")
+        print(f"RSA (enc) privada: {keys.ec_priv}")
+        print(f"RSA (enc) pública : {keys.ec_pub}")
+        print(f"RSA (sign) priv   : {keys.rsa_priv}")
+        print(f"RSA (sign) pub    : {keys.rsa_pub}")
+        print(f"AES master key    : {keys.aes_key}")
 
-    print(f"STATEFULL_ENABLED = {STATEFULL_ENABLED}")
+        print(f"STATEFULL_ENABLED = {STATEFULL_ENABLED}")
     if STATEFULL_ENABLED:
         global sesionesRedisStateFull
         sesionesRedisStateFull = {}
-        print("Sesiones stateful activadas (Redis simulado en memoria).")
+        if DEBUG:
+            print("Sesiones stateful activadas (Redis simulado en memoria).")
     else:
-        print("Modo stateful deshabilitado — no se crearán sesiones persistentes.")
+        if DEBUG:
+            print("Modo stateful deshabilitado — no se crearán sesiones persistentes.")
 
 #funcs con stateful handshake, luego se hace api y el proyecto las hereda.
 def register(request_json: Dict[str, Any]) -> Dict[str, str]:
@@ -77,7 +83,8 @@ def register(request_json: Dict[str, Any]) -> Dict[str, str]:
 
     # 4) Branch según stateful
     if STATEFULL_ENABLED:
-        print("Modo stateful activo: creando sesión en memoria...")
+        if DEBUG:
+            print("Modo stateful activo: creando sesión en memoria...")
         user_id = str(uuid.uuid4())
 
         # until = ahora + N minutos (Z en ISO8601)
@@ -149,7 +156,8 @@ if __name__ == "__main__":
     #dataBaseController = DBC()
     # instanciamos el Key Management System 
     kms = KMS()
-    print("Módulo auth inicializado.\n")
+    if DEBUG:
+        print("Módulo auth inicializado.\n")
 
 
 from PaketCipher import rsa_encrypt_b64u_with_public
@@ -186,6 +194,9 @@ def test_register_real():
 
     print("\n=== PACKET DESCIFRADO ===")
     print(json.dumps(dec, indent=4))
+
+    print("\n=== USER TESTING ===")
+    print("Usuarios registrados: ",UR.sesionesRedisStateFull)
 # Ejecutar test:
 test_register_real()
 
