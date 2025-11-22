@@ -2,6 +2,8 @@
 from datetime import datetime
 from typing import Optional
 
+#domain -> son las clases que uso en el back
+
 class DataPublic:
     """Datos visibles para todo público."""
     def __init__(self, nombre: Optional[str] = None,
@@ -13,22 +15,6 @@ class DataPublic:
 
     def __repr__(self):
         return f"<DataPublic nombre={self.nombre!r}>"
-    
-    def to_dict(self):
-        return {
-            "nombre": self.nombre,
-            "avatar_url": self.avatar_url,
-            "bio": self.bio,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict | None):
-        data = data or {}
-        return cls(
-            nombre=data.get("nombre"),
-            avatar_url=data.get("avatar_url"),
-            bio=data.get("bio"),
-        )
 
 class DataProtected:
     """Datos cifrados con el KMS, visibles por módulos del sistema."""
@@ -41,22 +27,6 @@ class DataProtected:
 
     def __repr__(self):
         return f"<DataProtected metricas={self.metricas!r}>"
-
-    def to_dict(self):
-        return {
-            "metricas": self.metricas,
-            "tokens": self.tokens,
-            "preferencias": self.preferencias,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict | None):
-        data = data or {}
-        return cls(
-            metricas=data.get("metricas"),
-            tokens=data.get("tokens"),
-            preferencias=data.get("preferencias"),
-        )
 
 class User:
     """Modelo de usuario base del framework."""
@@ -91,6 +61,8 @@ from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 
 Base = declarative_base()
+
+# orm -> son las clases que uso para mandarle al orm que haga la query, o lo que me devuelve el orm prese
 
 class UserORM(Base):
     __tablename__ = "app_user"
@@ -133,7 +105,7 @@ class UserProtectedDataORM(Base):
     user = relationship("UserORM", back_populates="protected")
 
 
-#mapping
+#mapping -> es para pasar de clase orm a nuestras clases o viseversa
 def orm_to_domain(db_user: UserORM) -> User:
     dp = None
     dprot = None
