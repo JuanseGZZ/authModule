@@ -96,7 +96,8 @@ def register(request_json: Dict[str, Any]) -> Dict[str, str]:
 
         UR.sesionesRedisStateFull[user_id] = { # en cada mensaje que envian lo mandan sin cifrar, PASARLO A STATICFUNTION
             "aesKey": aes_key,
-            "until": until_iso
+            "until": until_iso,
+            "refreshToken": rt
         }
     else:
         print("Modo stateful deshabilitado: no se crearán sesiones persistentes.")
@@ -197,10 +198,16 @@ def test_register_real():
     print("\n=== PACKET DESCIFRADO ===")
     print(json.dumps(dec, indent=4))
 
+    refresh_token = dec.get("refresh_token")
+    user_id_geted = encrypted_packet.get("user_id")
+
     print("\n=== USER TESTING ===")
     print("Usuarios logueados: ",UR.sesionesRedisStateFull)
     print("Usuarios RefreshToken: ",UR.sesionesRedisJWT)
     print("Usuarios registrados: ",UR.usuarios)
+    print("Check statefull token: ",UR.checkSFToken(refresh_token=refresh_token,id_user=user_id_geted))
+    print("Check refresh token: ",UR.checkRefreshToken("mike@example.com",refreshToken=refresh_token))
+    print("Testing user get: ",UR.getUser(email="mike@example.com",password="contraseña123",username=None))
 # Ejecutar test:
 test_register_real()
 

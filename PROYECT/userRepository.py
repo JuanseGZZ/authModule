@@ -64,21 +64,85 @@ class userRepository:
         return usuario
     
     @staticmethod
-    def checkRefreshToken(user:User, refreshToken:str) -> bool: # es horrible la forma de hacerse esto pero despues va a ser por db asi que nt
-        for sesion in userRepository.sesionesRedisJWT:
-            if sesion.get("email") ==  user.mail:
-                if sesion.get("refreshToken") == refreshToken:
-                    if sesion.get("until") > datetime.utcnow():
-                        return True
-        return False
+    def checkRefreshToken(email:str, refreshToken:str) -> bool: # es horrible la forma de hacerse esto pero despues va a ser por db asi que nt
+            ses = userRepository.sesionesRedisJWT.get(email)
+            if not ses:
+                return False
+
+            if ses["refreshToken"] != refreshToken:
+                return False
+
+            return _now_utc() < ses["until"]
     
     @staticmethod
-    def checkSFToken(user:User, id_user):
-        print("cheking")
+    def checkSFToken(refresh_token: str, id_user: str) -> bool:
+        """
+        Verifica la sesión stateful:
+        - Que exista entrada para id_user
+        - Que el refresh_token coincida
+        - Que la sesión no esté vencida (until)
+        """
+        ses = userRepository.sesionesRedisStateFull.get(id_user)
+        if not ses:
+            return False
+
+        if ses.get("refreshToken") != refresh_token:
+            return False
+
+        until = ses.get("until")
+        # puede estar guardado como datetime o como ISO string
+        if isinstance(until, str):
+            try:
+                # soportar formato con Z al final
+                if until.endswith("Z"):
+                    until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
+                else:
+                    until_dt = datetime.fromisoformat(until)
+            except ValueError:
+                return False
+        else:
+            until_dt = until
+
+        return _now_utc() < until_dt
 
     @staticmethod
-    def getUser(email:str,username:str,password:str):
-        print("trae usuario")
+    def getUser(email: str | None, username: str | None, password: str) -> User | None:
+        """
+        Busca un usuario por:
+        - email (desencriptando el mail con su aesEncriper), o
+        - username (en claro),
+        y valida que la password coincida (bcrypt).
+        Devuelve el User o None si no hay match.
+        """
+        email = email or ""
+        username = username or ""
+
+        for usuario in userRepository.usuarios:
+            ident_match = False
+
+            # match por email (si lo mandaron)
+            if email:
+                try:
+                    aes_plain_b64 = kms.decifrarKey(usuario.aesEncriper)
+                    mail_claro = descifrar_con_user_aes(aes_plain_b64, usuario.mail)
+                    if mail_claro == email:
+                        ident_match = True
+                except Exception:
+                    # si algo falla al desencriptar este usuario, lo saltamos
+                    pass
+
+            # match por username (si lo mandaron)
+            if username and usuario.username == username:
+                ident_match = True
+
+            if not ident_match:
+                continue
+
+            # validar password con bcrypt
+            if bcrypt.checkpw(password.encode("utf-8"), usuario.password.encode("utf-8")):
+                return usuario
+
+        return None
 
     @staticmethod
     def updateUserOnDB(user:User):
