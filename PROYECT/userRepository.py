@@ -159,7 +159,7 @@ class userRepository:
             mail_cifrado = cifrar_con_user_aes(aes_plain_b64, email)
             pwd_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-            u = User(
+            userDomain = User(
                 mail=mail_cifrado,
                 username=username,
                 password=pwd_hash,
@@ -169,7 +169,7 @@ class userRepository:
                 dataprotected=DataProtected(),    # después los vas seteando
             )
 
-            db_user = domain_to_orm(u)
+            db_user = domain_to_orm(userDomain)
             db.add(db_user)
             db.commit()
             db.refresh(db_user)
@@ -177,20 +177,77 @@ class userRepository:
             return orm_to_domain(db_user)
     
     @staticmethod
-    def get_by_username(username: str) -> User | None:
+    def get_user(email: str | None, username: str | None, password: str) -> User | None:
         from sqlalchemy.orm import joinedload
-        from db import SessionLocal
+        from db import SessionLocal 
         from userModels import UserORM, orm_to_domain
-
+        from KMS import KMS
+        import bcrypt
+    
+        kms = KMS()
+    
+        email = email or ""
+        username = username or ""
+    
         with SessionLocal() as db:
-            db_user = (
-                db.query(UserORM)
-                  .options(joinedload(UserORM.public), joinedload(UserORM.protected))
-                  .filter(UserORM.username == username)
-                  .first()
-            )
+        
+            db_user = None
+    
+            # =============================
+            # 1) Buscar por username
+            # =============================
+            if username:
+                db_user = (
+                    db.query(UserORM)
+                        .options(
+                            joinedload(UserORM.public),
+                            joinedload(UserORM.protected),
+                        )
+                        .filter(UserORM.username == username)
+                        .first()
+                )
+    
+            # =============================
+            # 2) Si no vino username, buscar por mail
+            # (descifrando user por user)
+            # =============================
+            if not db_user and email:
+                all_users = (
+                    db.query(UserORM)
+                        .options(
+                            joinedload(UserORM.public),
+                            joinedload(UserORM.protected),
+                        )
+                        .all()
+                )
+    
+                for u in all_users:
+                    try:
+                        aes_plain = kms.decifrarKey(u.aes_encripter)
+                        mail_claro = descifrar_con_user_aes(aes_plain, u.mail)
+    
+                        if mail_claro == email:
+                            db_user = u
+                            break
+                        
+                    except Exception:
+                        continue
+                    
+            # =============================
+            # Si no lo encontramos
+            # =============================
             if not db_user:
                 return None
+    
+            # =============================
+            # 3) Validar password
+            # =============================
+            if not bcrypt.checkpw(password.encode("utf-8"), db_user.password.encode("utf-8")):
+                return None
+    
+            # =============================
+            # 4) Mapear ORM → dominio
+            # =============================
             return orm_to_domain(db_user)
 
 

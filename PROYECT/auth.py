@@ -213,7 +213,7 @@ def test_register_real():
     print("Check refresh token: ",UR.checkRefreshToken("mike@example.com",refreshToken=refresh_token))
     print("Testing user get: ",UR.getUser(email="mike@example.com",password="contraseña123",username=None))
 
-    print("Traemos usuario desde la base de datos: ", UR.get_by_username(username="mike"))
+    print("Traemos usuario desde la base de datos: ", UR.get_user(username=None,email="mike@example.com",password="contraseña123"))
 # Ejecutar test:
 test_register_real()
 
