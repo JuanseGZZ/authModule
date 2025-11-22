@@ -8,19 +8,19 @@ from ensureKeys import ensure_keys
 from PaketCipher import Packet
 from accesToken import AccessToken
 from refreshToken import RefreshToken
-from DBController import DBC
 from KMS import KMS, descifrar_con_user_aes, cifrar_con_user_aes
 from userRepository import userRepository as UR
 
 from typing import Dict, Any
 
-from userModels import User
+from userModels import User, Base
 
 DEBUG = False
 
 # Cargamos el flag desde .env
 STATEFULL_ENABLED = os.getenv("STATEFULL_ENABLED", "false").lower() == "true"
 STATEFULL_TOKEN_TIME_MIN = int(os.getenv("STATEFULL_TOKEN_TIME_MIN", "15"))
+
 
 def init() -> None:
     """
@@ -29,6 +29,9 @@ def init() -> None:
     - Carga las variables de entorno (.env).
     - Informa las rutas de las claves creadas o encontradas.
     """
+    from db import engine
+    Base.metadata.create_all(bind=engine)
+
     if DEBUG:
         print("🔑 Iniciando módulo de autenticación...")
     keys = ensure_keys()
@@ -80,6 +83,7 @@ def register(request_json: Dict[str, Any]) -> Dict[str, str]:
 
     # 3) alta usuario en tu store simulado    
     UR.crearUsuario(email,username,password,False) 
+    UR.crearUsuarioToDB(email,username,password,False)
 
     # 4) Branch según stateful
     if STATEFULL_ENABLED:
@@ -155,8 +159,6 @@ def uncyphStateFull(request):
 if __name__ == "__main__":
     # cargamos cosas 
     init()
-    # conectamos las DB
-    #dataBaseController = DBC()
     # instanciamos el Key Management System 
     kms = KMS()
     if DEBUG:
@@ -208,6 +210,8 @@ def test_register_real():
     print("Check statefull token: ",UR.checkSFToken(refresh_token=refresh_token,id_user=user_id_geted))
     print("Check refresh token: ",UR.checkRefreshToken("mike@example.com",refreshToken=refresh_token))
     print("Testing user get: ",UR.getUser(email="mike@example.com",password="contraseña123",username=None))
+
+    print("Traemos usuario desde la base de datos: ", UR.getUserFromDB(email=None,password="contraseña123",username="mike"))
 # Ejecutar test:
 test_register_real()
 

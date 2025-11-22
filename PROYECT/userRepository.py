@@ -1,6 +1,4 @@
 import os
-from DBController import PostgresDB
-from DBController import RedisDB
 from typing import Dict, Any
 from userModels import User
 from datetime import datetime, timedelta, timezone
@@ -143,6 +141,70 @@ class userRepository:
                 return usuario
 
         return None
+    
+    @staticmethod
+    def crearUsuarioToDB(email: str, username: str, password: str, is_admin: bool = False) -> User | str:
+        from datetime import datetime
+        from db import SessionLocal
+        from userModels import UserORM, orm_to_domain, domain_to_orm 
+
+        with SessionLocal() as db:
+            # 1) username en uso
+            if db.query(UserORM).filter_by(username=username).first():
+                return "username esta en uso"
+
+            # 2) generar key de usuario + cifrar mail
+            keys = kms.crearKeyUser()
+            encrypted_b64 = keys["encrypted_b64"]
+            aes_plain_b64 = keys["plain_b64"]
+
+            mail_cifrado = cifrar_con_user_aes(aes_plain_b64, email)
+            pwd_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode()
+
+            # 3) armar modelo de dominio
+            u = User(
+                mail=mail_cifrado,
+                username=username,
+                password=pwd_hash,
+                is_admin=is_admin,
+                aesEncriper=encrypted_b64,
+            )
+
+            # 4) persistir con ORM
+            db_user = domain_to_orm(u)
+            db.add(db_user)
+            db.commit()
+            db.refresh(db_user)
+
+            # 5) devolver User consistente
+            return orm_to_domain(db_user)
+    
+    @staticmethod
+    def getUserFromDB(email: str | None, username: str | None, password: str) -> User | None:
+        from db import SessionLocal
+        from userModels import UserORM, orm_to_domain, domain_to_orm 
+
+        username = username or ""
+        email = email or ""
+
+        with SessionLocal() as db:
+            if username:
+                db_user = db.query(UserORM).filter_by(username=username).first()
+            else:
+                # más adelante podés optimizar la búsqueda por mail cifrado
+                db_user = None
+
+            if not db_user:
+                return None
+
+            u = orm_to_domain(db_user)
+
+            import bcrypt
+            if not bcrypt.checkpw(password.encode("utf-8"), u.password.encode("utf-8")):
+                return None
+
+            return u
+
 
     @staticmethod
     def updateUserOnDB(user:User):
