@@ -84,9 +84,11 @@ class User:
 
 # models_orm.py
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import (
+    Column, Integer, String, Boolean, DateTime, ForeignKey
+)
+from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
@@ -101,19 +103,65 @@ class UserORM(Base):
     aes_encripter = Column(String, nullable=False)
     created = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    data_public = Column(JSONB, nullable=False, default=dict)
-    data_protected = Column(JSONB, nullable=False, default=dict)
+    public = relationship("UserPublicDataORM", uselist=False, back_populates="user", cascade="all, delete-orphan")
+    protected = relationship("UserProtectedDataORM", uselist=False, back_populates="user", cascade="all, delete-orphan")
 
+
+class UserPublicDataORM(Base):
+    __tablename__ = "user_public_data"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("app_user.id"), unique=True, nullable=False)
+
+    nombre = Column(String)
+    avatar_url = Column(String)
+    bio = Column(String)
+
+    user = relationship("UserORM", back_populates="public")
+
+
+class UserProtectedDataORM(Base):
+    __tablename__ = "user_protected_data"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("app_user.id"), unique=True, nullable=False)
+
+    metricas = Column(JSONB)
+    tokens = Column(JSONB)
+    preferencias = Column(JSONB)
+
+    user = relationship("UserORM", back_populates="protected")
+
+
+#mapping
 def orm_to_domain(db_user: UserORM) -> User:
+    dp = None
+    dprot = None
+
+    if db_user.public:
+        dp = DataPublic(
+            nombre=db_user.public.nombre,
+            avatar_url=db_user.public.avatar_url,
+            bio=db_user.public.bio,
+        )
+
+    if db_user.protected:
+        dprot = DataProtected(
+            metricas=db_user.protected.metricas,
+            tokens=db_user.protected.tokens,
+            preferencias=db_user.protected.preferencias,
+        )
+
     return User(
         mail=db_user.mail,
         username=db_user.username,
         password=db_user.password,
         is_admin=db_user.is_admin,
         aesEncriper=db_user.aes_encripter,
-        datapublic=DataPublic.from_dict(db_user.data_public),
-        dataprotected=DataProtected.from_dict(db_user.data_protected),
+        datapublic=dp,
+        dataprotected=dprot,
     )
+
 
 def domain_to_orm(user: User, db_user: UserORM | None = None) -> UserORM:
     if db_user is None:
@@ -126,7 +174,18 @@ def domain_to_orm(user: User, db_user: UserORM | None = None) -> UserORM:
     db_user.aes_encripter = user.aesEncriper
     db_user.created = user.created
 
-    db_user.data_public = user.datapublic.to_dict()
-    db_user.data_protected = user.dataprotected.to_dict()
+    # Public
+    if db_user.public is None:
+        db_user.public = UserPublicDataORM()
+    db_user.public.nombre = user.datapublic.nombre
+    db_user.public.avatar_url = user.datapublic.avatar_url
+    db_user.public.bio = user.datapublic.bio
+
+    # Protected
+    if db_user.protected is None:
+        db_user.protected = UserProtectedDataORM()
+    db_user.protected.metricas = user.dataprotected.metricas
+    db_user.protected.tokens = user.dataprotected.tokens
+    db_user.protected.preferencias = user.dataprotected.preferencias
 
     return db_user

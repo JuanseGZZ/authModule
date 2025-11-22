@@ -30,6 +30,8 @@ def init() -> None:
     - Informa las rutas de las claves creadas o encontradas.
     """
     from db import engine
+    from userModels import Base
+
     Base.metadata.create_all(bind=engine)
 
     if DEBUG:
@@ -83,7 +85,7 @@ def register(request_json: Dict[str, Any]) -> Dict[str, str]:
 
     # 3) alta usuario en tu store simulado    
     UR.crearUsuario(email,username,password,False) 
-    UR.crearUsuarioToDB(email,username,password,False)
+    UR.crear_usuario(email,username,password,False)
 
     # 4) Branch según stateful
     if STATEFULL_ENABLED:
@@ -211,7 +213,7 @@ def test_register_real():
     print("Check refresh token: ",UR.checkRefreshToken("mike@example.com",refreshToken=refresh_token))
     print("Testing user get: ",UR.getUser(email="mike@example.com",password="contraseña123",username=None))
 
-    print("Traemos usuario desde la base de datos: ", UR.getUserFromDB(email=None,password="contraseña123",username="mike"))
+    print("Traemos usuario desde la base de datos: ", UR.get_by_username(username="mike"))
 # Ejecutar test:
 test_register_real()
 
