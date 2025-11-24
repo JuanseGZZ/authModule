@@ -31,7 +31,7 @@ class userRepository:
     sesionesRedisJWT: Dict[str, Dict[str, Any]] = {}  # [{"email": ..., "refreshToken": ..., "until": }]
     # Simulación de sesiones stateful (sólo si está habilitado)
     sesionesRedisStateFull: Dict[str, Dict[str, str]] = {}  # {"email": {"user_id":int,"aesKey": str, "refreshToken": str, "until": str}}
-    #pasar a clases estas listas 
+    #pasar a clases estas listas, porque luego simplemente en vez de que la funcion guardar lo meta en un array en memoria, lo mande a db por el orm.
 
     def __init__(self):
         pass
@@ -327,6 +327,22 @@ class userRepository:
         }
 
     @staticmethod
+    def eliminar_sesion_refresh(email: str, refresh_token: str):
+        sesiones = userRepository.sesionesRedisJWT
+    
+        # Verificar que exista el email
+        if email not in sesiones:
+            return False  # No existe
+    
+        # Verificar coincidencia del refresh_token
+        if sesiones[email].get("refreshToken") == refresh_token:
+            del sesiones[email]
+            return True  # Eliminado
+    
+        return False  # No machea
+    
+
+    @staticmethod
     def refresh_valido(email: str, refresh_token: str) -> bool:
         ses = userRepository.sesionesRedisJWT.get(email)
         if not ses:
@@ -342,6 +358,22 @@ class userRepository:
             "until": until_iso,
             "refreshToken": refresh_token,
         }
+
+    @staticmethod
+    def eliminar_sesion_statefull(user_id: str, aes_key: str):
+        sesiones = userRepository.sesionesRedisStateFull
+
+        # Verificar que exista el user_id
+        if user_id not in sesiones:
+            return False  # No existe
+
+        # Verificar coincidencia de aesKey
+        if sesiones[user_id].get("aesKey") == aes_key:
+            del sesiones[user_id]
+            return True  # Eliminado
+
+        return False  # No machea
+
 
 
 def test_creacion_usuario():
