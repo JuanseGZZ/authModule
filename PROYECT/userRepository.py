@@ -143,7 +143,7 @@ class userRepository:
         return None
     
     @staticmethod
-    def crear_usuario(email: str, username: str, password: str, is_admin: bool = False) -> User | str:
+    def create_user(email: str, username: str, password: str, is_admin: bool = False) -> User | str:
         from datetime import datetime
         from db import SessionLocal
         from userModels import UserORM, orm_to_domain, domain_to_orm,  User, DataPublic, DataProtected
@@ -250,14 +250,67 @@ class userRepository:
             # =============================
             return orm_to_domain(db_user)
 
+    @staticmethod
+    def updateUserOnDB(user: User) -> bool:
+        """
+        Actualiza el usuario completo en la DB.
+        Toma un User (dominio), busca su ORM por username, actualiza public+protected+core.
+        """
+        from db import SessionLocal
+        from userModels import UserORM, domain_to_orm
+
+        with SessionLocal() as db:
+            # 1. Buscar user ORM por username
+            db_user = (
+                db.query(UserORM)
+                  .filter(UserORM.username == user.username)
+                  .first()
+            )
+
+            if not db_user:
+                return False  # No existe el user
+
+            # 2. Mapear del objeto dominio -> ORM existente
+            domain_to_orm(user, db_user=db_user)
+
+            # 3. Guardar cambios
+            db.commit()
+            db.refresh(db_user)
+
+            return True
 
     @staticmethod
-    def updateUserOnDB(user:User):
-        print("Updatea el objeto en dbs")
+    def getDataUncypher(user: User, data: str) -> str | None:
+        """
+        Desencripta un dato del usuario usando la AES privada del usuario.
+        - user: objeto de dominio User
+        - data: dato cifrado en base64 (ciphertext+IV) que se quiere desencriptar
+        Devuelve el dato en claro como str.
+        """
+        from KMS import KMS, descifrar_con_user_aes
+
+        kms = KMS()
+
+        if not data:
+            return None
+
+        try:
+            # 1) AES en claro descifrada desde user.aesEncriper
+            aes_plain_b64 = kms.decifrarKey(user.aesEncriper)
+
+            # 2) Desencriptar el dato usando AES del usuario
+            dato_claro = descifrar_con_user_aes(aes_plain_b64, data)
+
+            return dato_claro
+
+        except Exception as e:
+            print("Error desencriptando dato:", e)
+            return None
 
     @staticmethod
-    def getPrivateData(user:User,password:str,dataName:str):
-        print("tae un paramepro protegido por password, usa dataname para decir cual")
+    def setDataCipher(user:User, data_claro:str):
+        aes = kms.decifrarKey(user.aesEncriper)
+        return cifrar_con_user_aes(aes, data_claro)
 
     @staticmethod
     def guardar_sesion_refresh(email: str, refresh_token: str) -> None:
