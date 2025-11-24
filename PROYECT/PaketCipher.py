@@ -47,17 +47,24 @@ class Packet:
         payload = {
             "refresh_token": self.refresh_token,
             "access_token": self.access_token.to_json(),
-            "data": self.data,
-            "aes": self.aes_key
+            "data": self.data
         }
 
         plaintext = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         ciphertext = aesgcm.encrypt(iv, plaintext, None)
 
+        # IV separado para cifrar la propia AES
+        iv_aes = secrets.token_bytes(12)
+        aes_ciphertext = aesgcm.encrypt(iv_aes, self.aes_key.encode("utf-8"), None)
+
         out: dict = {
             "iv": base64.urlsafe_b64encode(iv).decode().rstrip("="),
             "ciphertext": base64.urlsafe_b64encode(ciphertext).decode().rstrip("="),
-            "user_id": self.user_id
+            "user_id": self.user_id,
+            "aes": {
+                "iv": _b64u_enc(iv_aes),
+                "ciphertext": _b64u_enc(aes_ciphertext),
+            },
         }
 
         if self.files:
@@ -65,11 +72,14 @@ class Packet:
 
         return out
     
-    # desencriptamos algo con un aes espesifica
+    # desencriptamos algo con un aes especifica
     @staticmethod
     def decryptAES(enc: Dict[str, str], aes_key: str | None = None) -> dict:
         if "iv" not in enc or "ciphertext" not in enc:
             raise ValueError("enc debe incluir 'iv' y 'ciphertext'")
+
+        if aes_key is None:
+            raise ValueError("aes_key no puede ser None en decryptAES")
 
         key_bytes = aes_key.encode()[:32].ljust(32, b"0")
         iv = _b64u_dec(enc["iv"])
@@ -79,7 +89,18 @@ class Packet:
         plaintext = aesgcm.decrypt(iv, ct, None)
         data = json.loads(plaintext.decode("utf-8"))
 
-         # --- archivos (si los hay) ---
+        # agregamos user_id al resultado común
+        data["user_id"] = enc.get("user_id")
+
+        # --- descifrar la AES si viene en enc["aes"] ---
+        aes_field = enc.get("aes")
+        if aes_field:
+            iv_aes = _b64u_dec(aes_field["iv"])
+            ct_aes = _b64u_dec(aes_field["ciphertext"])
+            aes_plain = aesgcm.decrypt(iv_aes, ct_aes, None).decode("utf-8")
+            data["aes"] = aes_plain
+
+        # --- archivos (si los hay) ---
         enc_files = enc.get("files") or []
         if enc_files:
             files = FilesCipherHandler.decrypt_files(enc_files, aes_key)
@@ -89,6 +110,7 @@ class Packet:
             data.setdefault("files", [])
 
         return data
+
     
     # desencripatdor para handshake RSA
     @staticmethod
@@ -175,12 +197,13 @@ def _test_aes_with_access_token_object():
     data = Packet.decryptAES(enc, aes_key=pkt.aes_key)
     print(data)
 
-    assert enc["user_id"] == "213asd3"
+    assert data["user_id"] == "213asd3"
     assert data["data"]["ok"] is True
+    assert data["aes"] == "0123456789abcdef0123456789abcdef"
     print("OK AES-GCM decrypt (estático) ✓")
 
 
-#_test_aes_with_access_token_object()
+_test_aes_with_access_token_object()
 
 
 def test_aes_packet_with_files() -> None:
