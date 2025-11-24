@@ -100,11 +100,7 @@ def register(request_json: Dict[str, Any]) -> Dict[str, str]:
         # refresh token según tu implementación
         rt = RefreshToken(user_id).getRefres()
 
-        UR.sesionesRedisStateFull[user_id] = { # en cada mensaje que envian lo mandan sin cifrar, PASARLO A STATICFUNTION
-            "aesKey": aes_key,
-            "until": until_iso,
-            "refreshToken": rt
-        }
+        UR.guardar_sesion_statefull(user_id=user_id,aes_key=aes_key,until_iso=until_iso,refresh_token=rt)
     else:
         print("Modo stateful deshabilitado: no se crearán sesiones persistentes.")
         user_id = "0"
@@ -182,11 +178,7 @@ def login(request_json: Dict[str, Any]) -> Dict[str, str]:
         rt = RefreshToken(user_id).getRefres()
 
         # mantenemos el esquema actual de sesiones in-memory
-        UR.sesionesRedisStateFull[user_id] = {
-            "aesKey": aes_key,
-            "until": until_iso,
-            "refreshToken": rt,
-        }
+        UR.guardar_sesion_statefull(user_id=user_id,aes_key=aes_key,until_iso=until_iso,refresh_token=rt)
     else:
         if DEBUG:
             print("Modo stateful deshabilitado en login: no se crearán sesiones persistentes.")

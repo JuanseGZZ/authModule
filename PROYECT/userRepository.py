@@ -334,6 +334,14 @@ class userRepository:
         if ses["refreshToken"] != refresh_token:
             return False
         return _now_utc() < ses["until"]
+    
+    @staticmethod
+    def guardar_sesion_statefull(user_id:str, aes_key:str, refresh_token:str, until_iso):
+        userRepository.sesionesRedisStateFull[user_id] = {
+            "aesKey": aes_key,
+            "until": until_iso,
+            "refreshToken": refresh_token,
+        }
 
 
 def test_creacion_usuario():

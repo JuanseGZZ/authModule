@@ -1,0 +1,27 @@
+handshake msg:
+- "handshake_b64u" -> es el data cifrado con la publica del server
+
+common msg:
+- "user_id" (no va cifrado)
+- "iv" (no va cifrado)
+- "aes" (esto siempre esta, si el msg es statefull va a estar cifrada con ella misma, si es stateless va a estar cifrada con la rsa publica del server)
+- "data" (cifrada con la aes)
+- "files" (cifrados con la aes)
+- "refresh_token"
+- "access_token"
+
+
+
+
+response message from server
+- "user_id" (no va cifrado)
+- "iv" (no va cifrado)
+- payload{
+    - aes
+    - data (cifrada con la aes)
+    - "refresh_token"
+    - "access_token"
+}
+- files (cifrados con la aes)
+
+
