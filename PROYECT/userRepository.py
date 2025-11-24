@@ -327,30 +327,29 @@ class userRepository:
         }
 
     @staticmethod
-    def eliminar_sesion_refresh(email: str, refresh_token: str):
+    def eliminar_sesion_refresh(refresh_token: str) -> bool:
         sesiones = userRepository.sesionesRedisJWT
-    
-        # Verificar que exista el email
-        if email not in sesiones:
-            return False  # No existe
-    
-        # Verificar coincidencia del refresh_token
-        if sesiones[email].get("refreshToken") == refresh_token:
-            del sesiones[email]
-            return True  # Eliminado
-    
-        return False  # No machea
+        if refresh_token in sesiones:
+            del sesiones[refresh_token]
+            return True
+        return False
     
 
     @staticmethod
-    def refresh_valido(email: str, refresh_token: str) -> bool:
-        ses = userRepository.sesionesRedisJWT.get(email)
+    def refresh_valido(refresh_token: str) -> bool:
+        ses = None
+    
+        # localizar la sesión que tenga ese refresh_token
+        for s in userRepository.sesionesRedisJWT.values():
+            if s.get("refreshToken") == refresh_token:
+                ses = s
+                break
+            
         if not ses:
             return False
-        if ses["refreshToken"] != refresh_token:
-            return False
-        return _now_utc() < ses["until"]
     
+        return _now_utc() < ses["until"]
+        
     @staticmethod
     def guardar_sesion_statefull(user_id:str, aes_key:str, refresh_token:str, until_iso):
         userRepository.sesionesRedisStateFull[user_id] = {

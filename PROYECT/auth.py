@@ -215,7 +215,83 @@ def login(request_json: Dict[str, Any]) -> Dict[str, str]:
     return encrypted_packet
 
 def unlogin(request_json: Dict[str, Any]) -> Dict[str, str]:
-    print("un login")
+    """
+    Implementación correcta del protocolo:
+    - Si user_id != "0": stateful → la AES está en memoria.
+    - Si user_id == "0": stateless → la AES viene cifrada con RSA.
+    """
+
+    user_id = request_json.get("user_id")
+    if user_id is None:
+        return {"status": "error", "msg": "Falta user_id"}
+
+    # ============================================================
+    # STATEFUL (user_id != "0")
+    # ============================================================
+    if user_id != "0":
+
+        ses = UR.sesionesRedisStateFull.get(user_id)
+        if not ses:
+            return {"status": "error", "msg": "stateful session inexistente"}
+
+        aes_server = ses["aesKey"]
+
+        # 1) DESCIFRAR TODO EL PAQUETE AES
+        try:
+            dec = Packet.decryptAES(request_json, aes_key=aes_server)
+        except Exception as e:
+            return {"status": "error", "msg": f"Error AES decrypt: {str(e)}"}
+
+        # 2) VALIDAR QUE LA AES INTERNA COINCIDA
+        aes_interna = dec.get("aes")
+        if aes_interna != aes_server:
+            return {"status": "error", "msg": "AES interna no coincide. Paquete adulterado"}
+
+        # 3) EXTRAER REFRESH TOKEN
+        refresh = dec.get("refresh_token")
+        if not refresh:
+            return {"status": "error", "msg": "refresh_token faltante"}
+
+        # 4) BORRAR SESIONES
+        UR.eliminar_sesion_statefull(user_id, aes_server)
+        UR.eliminar_sesion_refresh(refresh)
+
+        return {"status": "ok", "msg": "unlogin stateful correcto"}
+
+
+    # ============================================================
+    # STATELESS (user_id == "0")
+    # ============================================================
+    else:
+        aes_field = request_json.get("aes", {})
+        if "ciphertext" not in aes_field:
+            return {"status": "error", "msg": "Falta campo aes.ciphertext en stateless"}
+
+        # 1) sacar la AES real desencriptando RSA
+        try:
+            aes_key = Packet.decrypt_with_rsa(aes_field["ciphertext"])
+            if not isinstance(aes_key, str):
+                return {"status": "error", "msg": "AES decodificada por RSA no es string"}
+        except Exception as e:
+            return {"status": "error", "msg": f"Error RSA decrypt AES: {str(e)}"}
+
+        # 2) NO le pasamos el campo "aes" a decryptAES,
+        #    porque ahí metimos un ciphertext RSA, no AES
+        enc_copy = {k: v for k, v in request_json.items() if k != "aes"}
+
+        try:
+            dec = Packet.decryptAES(enc_copy, aes_key=aes_key)
+        except Exception as e:
+            return {"status": "error", "msg": f"Error decryptAES con aes_key: {str(e)}"}
+
+        refresh = dec.get("refresh_token")
+        if not refresh:
+            return {"status": "error", "msg": "refresh_token faltante"}
+
+        UR.eliminar_sesion_refresh(refresh)
+
+        return {"status": "ok", "msg": "unlogin stateless correcto"}
+
 
 def refresh(request_json: Dict[str, Any]) -> Dict[str, str]: # si ambos metodos estan habilitados va a ver si en el paquete el user_id no sea cero, si es cero le llego un paquete stateless, sino statefull.
     print("refresh acces token")
@@ -337,4 +413,112 @@ def test_login_real():
     print("Check statefull token:", UR.checkSFToken(refresh_token=refresh_token, id_user=user_id_geted))
     print("Check refresh token:", UR.checkRefreshToken("mike@example.com", refreshToken=refresh_token))
 
-test_login_real()
+#test_login_real()
+
+def test_unlogin_real():
+    """
+    Flujo:
+    - REGISTER usuario mike_unlog
+    - LOGIN #1 (stateful) → unlogin() stateful con el paquete tal cual vuelve
+    - LOGIN #2 (mismo user) → armamos request stateless y probamos unlogin() stateless
+    """
+
+    print("\n==============================")
+    print("=== TEST UNLOGIN REAL ========")
+    print("==============================")
+
+    # limpiar sesiones
+    UR.sesionesRedisStateFull.clear()
+    UR.sesionesRedisJWT.clear()
+
+    aes_key = "0123456789abcdef0123456789abcdef"
+
+    # ---------------------------
+    # HANDSHAKE COMÚN (REGISTER + LOGIN)
+    # ---------------------------
+    handshake_payload = {
+        "username": "mike_unlog",
+        "password": "contraseña123",
+        "email": "mike_unlog@example.com",
+        "aeskey": aes_key,
+    }
+
+    handshake_b64u = rsa_encrypt_b64u_with_public(handshake_payload)
+    request_json = {"handshake_b64u": handshake_b64u}
+
+    # ============================
+    # LOGIN #1 → STATEFUL
+    # ============================
+    print("\n[LOGIN #1] Ejecutando login() para stateful...")
+    encrypted_packet = login(request_json)
+    print("[LOGIN #1] Paquete cifrado:")
+    print(json.dumps(encrypted_packet, indent=4))
+
+    user_id = encrypted_packet.get("user_id")
+    print(f"[LOGIN #1] user_id: {user_id!r}")
+    print("[LOGIN #1] sesionesRedisStateFull:", UR.sesionesRedisStateFull)
+    print("[LOGIN #1] sesionesRedisJWT      :", UR.sesionesRedisJWT)
+
+    # ============================
+    # UNLOGIN STATEFUL
+    # ============================
+    if user_id and user_id != "0":
+        print("\n[UNLOGIN STATEFUL] Ejecutando unlogin() con el paquete del login #1...")
+        res_sf = unlogin(encrypted_packet)
+        print("[UNLOGIN STATEFUL] Resultado:", res_sf)
+        print("[UNLOGIN STATEFUL] sesionesRedisStateFull:", UR.sesionesRedisStateFull)
+        print("[UNLOGIN STATEFUL] sesionesRedisJWT      :", UR.sesionesRedisJWT)
+    else:
+        print("\n[UNLOGIN STATEFUL] user_id == '0' → no hay stateful para probar.")
+
+    # ============================
+    # LOGIN #2 → BASE PARA STATELESS
+    # ============================
+    print("\n[LOGIN #2] Ejecutando login() de nuevo (mismo usuario)...")
+    encrypted_packet2 = login(request_json)
+    print("[LOGIN #2] Paquete cifrado:")
+    print(json.dumps(encrypted_packet2, indent=4))
+
+    # Desciframos con la AES para ver qué hay adentro y obtener el refresh_token
+    dec2 = Packet.decryptAES(encrypted_packet2, aes_key=aes_key)
+    print("\n[LOGIN #2] Paquete descifrado con AES:")
+    print(json.dumps(dec2, indent=4))
+
+    refresh2 = dec2.get("refresh_token")
+    print("[LOGIN #2] refresh_token:", refresh2)
+    print("[LOGIN #2] sesionesRedisJWT:", UR.sesionesRedisJWT)
+
+    # ============================
+    # ARMAR REQUEST STATELESS
+    # ============================
+    # En stateless:
+    # - user_id = "0"
+    # - iv y ciphertext son los mismos del paquete AES
+    # - aes.ciphertext = AES cifrada con RSA
+    # - aes.iv debe existir (aunque no lo usemos), para que decryptAES no rompa
+    aes_cipher_rsa = rsa_encrypt_b64u_with_public(aes_key)
+
+    stateless_request = {
+        "user_id": "0",
+        "iv": encrypted_packet2["iv"],
+        "ciphertext": encrypted_packet2["ciphertext"],
+        "aes": {
+            "iv": "AAAAAAAAAA", # base64url dummy, no se usa en stateless
+            "ciphertext": aes_cipher_rsa # AES real cifrada con RSA
+        }
+        # si quisieras soportar files, copiarías también "files" del encrypted_packet2
+    }
+
+    print("\n[UNLOGIN STATELESS] Request armado para unlogin():")
+    print(json.dumps(stateless_request, indent=4))
+
+    # ============================
+    # UNLOGIN STATELESS
+    # ============================
+    res_sl = unlogin(stateless_request)
+    print("\n[UNLOGIN STATELESS] Resultado:", res_sl)
+    print("[UNLOGIN STATELESS] sesionesRedisJWT:", UR.sesionesRedisJWT)
+
+    print("\n=========== FIN test_unlogin_real ===========\n")
+
+test_unlogin_real()

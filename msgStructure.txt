@@ -1,3 +1,5 @@
+Te pase el proyecto que estoy haciendo, es un framework de auth, tiene dos modos hablilitables, ambos pueden estar habilitados a la vez y la forma de diferenciar en que modo me llego tal peticion es ver el user_id, el cual si esta en 0 dice que el paquete llego cifrado por rsa (stateless), si es otro numero vino por aes que tengo guardada en el server de cuando el user hizo handshake, y vamos a buscarla y decifrar el mensaje. Aca estan las estructuras de los paquetes:
+
 handshake msg:
 - "handshake_b64u" -> es el data cifrado con la publica del server
 
@@ -7,12 +9,12 @@ common msg:
 - "aes" (esto siempre esta, si el msg es statefull va a estar cifrada con ella misma, si es stateless va a estar cifrada con la rsa publica del server)
 {
     - iv (de aes)
-    - aesCyphered
+    - aesCyphered (cifrados con la aes)
 }
 - "data" (cifrada con la aes)
 - "files" (cifrados con la aes)
-- "refresh_token"
-- "access_token"
+- "refresh_token" (cifrados con la aes)
+- "access_token" (cifrados con la aes)
 
 
 
