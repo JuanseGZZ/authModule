@@ -225,7 +225,7 @@ def login(request_json: Dict[str, Any]) -> Dict[str, str]:
 def unlogin(request_json: Dict[str, Any]) -> Dict[str, str]:
     print("un login")
 
-def refresh(request_json: Dict[str, Any]) -> Dict[str, str]:
+def refresh(request_json: Dict[str, Any]) -> Dict[str, str]: # si ambos metodos estan habilitados va a ver si en el paquete el user_id no sea cero, si es cero le llego un paquete stateless, sino statefull.
     print("refresh acces token")
 
 # funcs para exportar, cuando importen esta libreria, ademas de importar los paths prehechos pueden usar estas funciones para otros endpoint para al inicio y al final del endpoit cifrar o decifrar como deberian hacerlo, bajo el primcipio que haya querido tomar ese endpoint.
@@ -240,8 +240,6 @@ def cyphStateFull(request):
     print("cph")
 def uncyphStateFull(request):
     print("cph")
-
-
 
 
 # Permite ejecutar directamente desde la consola:

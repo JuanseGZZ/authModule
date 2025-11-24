@@ -31,6 +31,7 @@ class userRepository:
     sesionesRedisJWT: Dict[str, Dict[str, Any]] = {}  # [{"email": ..., "refreshToken": ..., "until": }]
     # Simulación de sesiones stateful (sólo si está habilitado)
     sesionesRedisStateFull: Dict[str, Dict[str, str]] = {}  # {"email": {"user_id":int,"aesKey": str, "refreshToken": str, "until": str}}
+    #pasar a clases estas listas 
 
     def __init__(self):
         pass
@@ -62,7 +63,7 @@ class userRepository:
         return usuario
     
     @staticmethod
-    def checkRefreshToken(email:str, refreshToken:str) -> bool: # es horrible la forma de hacerse esto pero despues va a ser por db asi que nt
+    def checkRefreshToken(email:str, refreshToken:str) -> bool:
             ses = userRepository.sesionesRedisJWT.get(email)
             if not ses:
                 return False
@@ -73,7 +74,7 @@ class userRepository:
             return _now_utc() < ses["until"]
     
     @staticmethod
-    def checkSFToken(refresh_token: str, id_user: str) -> bool:
+    def checkSFToken(refresh_token: str, id_user: str) -> bool: # cambiar que el id sea igual al refresh, por que el aes que devuelve el deciframiento con el aes del id, sean iguales las aes, para validar que el paket no fue adulterado
         """
         Verifica la sesión stateful:
         - Que exista entrada para id_user

@@ -29,10 +29,10 @@ class Packet:
         self.access_token = access_token
         self.data = data
         self.aes_key = aes_key
-        self.iv = None
+        self.files: list[dict] = files or []
         #no cifrada 
         self.user_id = user_id # 0 significa que usa stateless, mas de 0 statefull. en realidad va a estar explicito en la func que usen en el modulo pero sirve para avisar
-        self.files: list[dict] = files or []
+        self.iv = None
 
     # encriptador de AES
     def encriptAES(self) -> dict:
@@ -48,6 +48,7 @@ class Packet:
             "refresh_token": self.refresh_token,
             "access_token": self.access_token.to_json(),
             "data": self.data,
+            "aes": self.aes_key
         }
 
         plaintext = json.dumps(payload, separators=(",", ":")).encode("utf-8")
@@ -174,7 +175,7 @@ def _test_aes_with_access_token_object():
     data = Packet.decryptAES(enc, aes_key=pkt.aes_key)
     print(data)
 
-    assert data["user_id"] == "213asd3"
+    assert enc["user_id"] == "213asd3"
     assert data["data"]["ok"] is True
     print("OK AES-GCM decrypt (estático) ✓")
 
