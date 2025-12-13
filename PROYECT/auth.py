@@ -19,7 +19,6 @@ DEBUG = False
 
 # Cargamos el flag desde .env
 STATEFULL_ENABLED = os.getenv("STATEFULL_ENABLED", "false").lower() == "true"
-STATEFULL_TOKEN_TIME_MIN = int(os.getenv("STATEFULL_TOKEN_TIME_MIN", "15"))
 
 
 def init() -> None:
@@ -93,14 +92,10 @@ def register(request_json: Dict[str, Any]) -> Dict[str, str]:
             print("Modo stateful activo: creando sesión en memoria...")
         user_id = str(uuid.uuid4())
 
-        # until = ahora + N minutos (Z en ISO8601)
-        until_dt = datetime.now(timezone.utc) + timedelta(minutes=STATEFULL_TOKEN_TIME_MIN)
-        until_iso = until_dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
         # refresh token según tu implementación
         rt = RefreshToken(user_id).getRefres()
 
-        UR.guardar_sesion_statefull(user_id=user_id,aes_key=aes_key,until_iso=until_iso,refresh_token=rt)
+        UR.guardar_sesion_statefull(user_id=user_id,aes_key=aes_key,refresh_token=rt)
     else:
         print("Modo stateful deshabilitado: no se crearán sesiones persistentes.")
         user_id = "0"
@@ -170,21 +165,16 @@ def login(request_json: Dict[str, Any]) -> Dict[str, str]:
 
         user_id = str(uuid.uuid4())
 
-        # until = ahora + N minutos (Z en ISO8601)
-        until_dt = datetime.now(timezone.utc) + timedelta(minutes=STATEFULL_TOKEN_TIME_MIN)
-        until_iso = until_dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
         # refresh token según tu implementación
         rt = RefreshToken(user_id).getRefres()
 
         # mantenemos el esquema actual de sesiones in-memory
-        UR.guardar_sesion_statefull(user_id=user_id,aes_key=aes_key,until_iso=until_iso,refresh_token=rt)
+        UR.guardar_sesion_statefull(user_id=user_id,aes_key=aes_key,refresh_token=rt)
     else:
         if DEBUG:
             print("Modo stateful deshabilitado en login: no se crearán sesiones persistentes.")
         user_id = "0"
         rt = None
-        until_iso = None  # por ahora no lo usamos
 
     # 5) Access token para el usuario (como en register)
     # usamos el username del dominio (descargado de DB)
@@ -230,7 +220,7 @@ def unlogin(request_json: Dict[str, Any]) -> Dict[str, str]:
     # ============================================================
     if user_id != "0":
 
-        ses = UR.sesionesRedisStateFull.get(user_id)
+        ses = UR.get_statefull_session(user_id)
         if not ses:
             return {"status": "error", "msg": "stateful session inexistente"}
 
@@ -422,14 +412,15 @@ def test_unlogin_real():
     - LOGIN #1 (stateful) → unlogin() stateful con el paquete tal cual vuelve
     - LOGIN #2 (mismo user) → armamos request stateless y probamos unlogin() stateless
     """
+    from sessions import sesionesRedisStateFull as SSF, sesionesRedisJWT as SJWT
 
     print("\n==============================")
     print("=== TEST UNLOGIN REAL ========")
     print("==============================")
 
     # limpiar sesiones
-    UR.sesionesRedisStateFull.clear()
-    UR.sesionesRedisJWT.clear()
+    SSF.clear()
+    SJWT.clear()
 
     aes_key = "0123456789abcdef0123456789abcdef"
 
@@ -456,8 +447,8 @@ def test_unlogin_real():
 
     user_id = encrypted_packet.get("user_id")
     print(f"[LOGIN #1] user_id: {user_id!r}")
-    print("[LOGIN #1] sesionesRedisStateFull:", UR.sesionesRedisStateFull)
-    print("[LOGIN #1] sesionesRedisJWT      :", UR.sesionesRedisJWT)
+    print("[LOGIN #1] sesionesRedisStateFull:", SSF.sessiones)
+    print("[LOGIN #1] sesionesRedisJWT      :", SJWT.sessiones)
 
     # ============================
     # UNLOGIN STATEFUL
@@ -466,8 +457,9 @@ def test_unlogin_real():
         print("\n[UNLOGIN STATEFUL] Ejecutando unlogin() con el paquete del login #1...")
         res_sf = unlogin(encrypted_packet)
         print("[UNLOGIN STATEFUL] Resultado:", res_sf)
-        print("[UNLOGIN STATEFUL] sesionesRedisStateFull:", UR.sesionesRedisStateFull)
-        print("[UNLOGIN STATEFUL] sesionesRedisJWT      :", UR.sesionesRedisJWT)
+        print("[UNLOGIN STATEFUL] sesionesRedisStateFull:", SSF.sessiones)
+        print("[UNLOGIN STATEFUL] sesionesRedisJWT      :", SJWT.sessiones)
+
     else:
         print("\n[UNLOGIN STATEFUL] user_id == '0' → no hay stateful para probar.")
 
@@ -486,7 +478,7 @@ def test_unlogin_real():
 
     refresh2 = dec2.get("refresh_token")
     print("[LOGIN #2] refresh_token:", refresh2)
-    print("[LOGIN #2] sesionesRedisJWT:", UR.sesionesRedisJWT)
+    print("[LOGIN #2] sesionesRedisJWT:", SJWT.sessiones)
 
     # ============================
     # ARMAR REQUEST STATELESS
@@ -517,8 +509,8 @@ def test_unlogin_real():
     # ============================
     res_sl = unlogin(stateless_request)
     print("\n[UNLOGIN STATELESS] Resultado:", res_sl)
-    print("[UNLOGIN STATELESS] sesionesRedisJWT:", UR.sesionesRedisJWT)
+    print("[UNLOGIN STATELESS] sesionesRedisJWT:", SJWT.sessiones)
 
     print("\n=========== FIN test_unlogin_real ===========\n")
 
-#test_unlogin_real()
+test_unlogin_real()

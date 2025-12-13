@@ -1,15 +1,9 @@
-import os
-from typing import Dict, Any
 from userModels import User
-from datetime import datetime, timedelta, timezone
 import bcrypt
 
 from KMS import KMS, cifrar_con_user_aes, descifrar_con_user_aes
 
 kms = KMS()
-
-# para los dias del refresh
-JWT_REFRESH_TTL_DAYS = int(os.getenv("JWT_REFRESH_TTL_DAYS", "30"))
 
 # aesky = kms.decifrarKey(nuevo.aesEncriper)
 # cifrar_con_user_aes(aeskey,datoACifrar)
@@ -19,19 +13,14 @@ def hash_password(password: str) -> str:
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
     return hashed.decode("utf-8")
 
-def _now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+
+from sessions import sesionesRedisJWT as SJWT, sesionesRedisStateFull as SSF
 
 # para gestionar peticiones a db y que te devuelva objets user
 class userRepository:
 
     #Lista de usuarios registrados simulada
     usuarios: list[User] = []
-    # Simulación de sesiones JWT (stateless)
-    sesionesRedisJWT: Dict[str, Dict[str, Any]] = {}  # [{"email": ..., "refreshToken": ..., "until": }]
-    # Simulación de sesiones stateful (sólo si está habilitado)
-    sesionesRedisStateFull: Dict[str, Dict[str, str]] = {}  # {"email": {"user_id":int,"aesKey": str, "refreshToken": str, "until": str}}
-    #pasar a clases estas listas, porque luego simplemente en vez de que la funcion guardar lo meta en un array en memoria, lo mande a db por el orm.
 
     def __init__(self):
         pass
@@ -61,48 +50,6 @@ class userRepository:
         #va a db, en este caso aca por el momenot
         userRepository.usuarios.append(usuario)
         return usuario
-    
-    @staticmethod
-    def checkRefreshToken(email:str, refreshToken:str) -> bool:
-            ses = userRepository.sesionesRedisJWT.get(email)
-            if not ses:
-                return False
-
-            if ses["refreshToken"] != refreshToken:
-                return False
-
-            return _now_utc() < ses["until"]
-    
-    @staticmethod
-    def checkSFToken(refresh_token: str, id_user: str) -> bool: # cambiar que el id sea igual al refresh, por que el aes que devuelve el deciframiento con el aes del id, sean iguales las aes, para validar que el paket no fue adulterado
-        """
-        Verifica la sesión stateful:
-        - Que exista entrada para id_user
-        - Que el refresh_token coincida
-        - Que la sesión no esté vencida (until)
-        """
-        ses = userRepository.sesionesRedisStateFull.get(id_user)
-        if not ses:
-            return False
-
-        if ses.get("refreshToken") != refresh_token:
-            return False
-
-        until = ses.get("until")
-        # puede estar guardado como datetime o como ISO string
-        if isinstance(until, str):
-            try:
-                # soportar formato con Z al final
-                if until.endswith("Z"):
-                    until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
-                else:
-                    until_dt = datetime.fromisoformat(until)
-            except ValueError:
-                return False
-        else:
-            until_dt = until
-
-        return _now_utc() < until_dt
 
     @staticmethod
     def getUser(email: str | None, username: str | None, password: str) -> User | None:
@@ -145,7 +92,6 @@ class userRepository:
     
     @staticmethod
     def create_user(email: str, username: str, password: str, is_admin: bool = False) -> User | str:
-        from datetime import datetime
         from db import SessionLocal
         from userModels import UserORM, orm_to_domain, domain_to_orm,  User, DataPublic, DataProtected
 
@@ -281,7 +227,7 @@ class userRepository:
             return True
 
     @staticmethod
-    def getDataUncypher(user: User, data: str) -> str | None:
+    def getDataUncypher(user: User, data: str) -> str | None: # usas para data: user.elDatoADecifrar
         """
         Desencripta un dato del usuario usando la AES privada del usuario.
         - user: objeto de dominio User
@@ -309,79 +255,42 @@ class userRepository:
             return None
 
     @staticmethod
-    def setDataCipher(user:User, data_claro:str):
+    def setDataCipher(user:User, data_claro:str): # usas para data: user.elDatoACifrar
         aes = kms.decifrarKey(user.aesEncriper)
         return cifrar_con_user_aes(aes, data_claro)
 
+    # -------------------------------- SESIONES
+    # ---------------- SJWT
     @staticmethod
     def guardar_sesion_refresh(email: str, refresh_token: str) -> None:
-        """
-        Guarda la sesión de refresh ligada al email.
-        until = ahora + JWT_REFRESH_TTL_DAYS (en días).
-        """
-        until_dt = _now_utc() + timedelta(days=JWT_REFRESH_TTL_DAYS)
-        # lo podés guardar como datetime o ISO, según cómo lo vayas a leer
-        userRepository.sesionesRedisJWT[email] = {
-            "refreshToken": refresh_token,
-            "until": until_dt,    # o until_dt.isoformat() si preferís string
-        }
-
+        # class implementation
+        SJWT(email=email,refreshtoken=refresh_token)
     @staticmethod
     def eliminar_sesion_refresh(refresh_token: str) -> bool:
-        sesiones = userRepository.sesionesRedisJWT
-    
-        email_a_borrar = None
-        for email, ses in sesiones.items():
-            if ses.get("refreshToken") == refresh_token:
-                email_a_borrar = email
-                break
-            
-        if email_a_borrar is not None:
-            del sesiones[email_a_borrar]
-            return True
-    
-        return False
-        
-
+        return SJWT.delete(refresh_token=refresh_token)
     @staticmethod
     def refresh_valido(refresh_token: str) -> bool:
-        ses = None
-
-        # localizar la sesión que tenga ese refresh_token
-        for s in userRepository.sesionesRedisJWT.values():
-            if s.get("refreshToken") == refresh_token:
-                ses = s
-                break
-
-        if not ses:
-            return False
-
-        return _now_utc() < ses["until"]
-
+        return SJWT.refresh_valido(refresh_token=refresh_token)
     @staticmethod
-    def guardar_sesion_statefull(user_id:str, aes_key:str, refresh_token:str, until_iso):
-        userRepository.sesionesRedisStateFull[user_id] = {
-            "aesKey": aes_key,
-            "until": until_iso,
-            "refreshToken": refresh_token,
-        }
-
+    def checkRefreshToken(email:str, refreshToken:str) -> bool:
+        return SJWT.check(email=email, refresh_token=refreshToken)
+    # ----------------- StateFull
+    @staticmethod
+    def guardar_sesion_statefull(user_id:str, aes_key:str, refresh_token:str):
+        # class implementation
+        SSF(user_id=user_id,aesKey=aes_key,refreshToken=refresh_token)
     @staticmethod
     def eliminar_sesion_statefull(user_id: str, aes_key: str):
-        sesiones = userRepository.sesionesRedisStateFull
+        return SSF.delete(user_id=user_id,aes_key=aes_key)
+    @staticmethod
+    def get_statefull_session(user_id: str):
+        return SSF.get(user_id)
+    @staticmethod
+    def checkSFToken(refresh_token: str, id_user: str) -> bool: # cambiar que el id sea igual al refresh, por que el aes que devuelve el deciframiento con el aes del id, sean iguales las aes, para validar que el paket no fue adulterado
+        return SSF.check(refresh_token=refresh_token, user_id=id_user)
+    
 
-        # Verificar que exista el user_id
-        if user_id not in sesiones:
-            return False  # No existe
-
-        # Verificar coincidencia de aesKey
-        if sesiones[user_id].get("aesKey") == aes_key:
-            del sesiones[user_id]
-            return True  # Eliminado
-
-        return False  # No machea
-
-
+#/---------------------------------------/
 
 def test_creacion_usuario():
     print("=== TEST CREAR USUARIO ===")
