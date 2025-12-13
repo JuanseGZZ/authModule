@@ -247,8 +247,6 @@ def unlogin(request_json: Dict[str, Any]) -> Dict[str, str]:
         UR.eliminar_sesion_refresh(refresh)
 
         return {"status": "ok", "msg": "unlogin stateful correcto"}
-
-
     # ============================================================
     # STATELESS (user_id == "0")
     # ============================================================
@@ -513,4 +511,4 @@ def test_unlogin_real():
 
     print("\n=========== FIN test_unlogin_real ===========\n")
 
-test_unlogin_real()
+#test_unlogin_real()

@@ -9,7 +9,7 @@ JWT_REFRESH_TTL_DAYS = int(os.getenv("JWT_REFRESH_TTL_DAYS", "30"))
 STATEFULL_TOKEN_TIME_MIN = int(os.getenv("STATEFULL_TOKEN_TIME_MIN", "15"))
 
 class sesionesRedisJWT:
-    sessiones = []
+    sessiones = [] #cache de sesiones
 
     def __init__(self,email:str,refreshtoken:str):
         self.email = email
@@ -53,7 +53,7 @@ class sesionesRedisJWT:
 
 
 class sesionesRedisStateFull:
-    sessiones = []
+    sessiones = [] #cache de sesiones
 
     def __init__(self,user_id:str,aesKey:str,refreshToken:str):
         self.user_id = user_id

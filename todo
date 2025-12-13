@@ -1,5 +1,4 @@
 - hacer las sesiones como class. DONE
-- hacer que las class sesiones sean cache y db a la vez.
 - hacer sus orms.
 - pasar las funciones a que consuman db.
 - hacer refresh().
