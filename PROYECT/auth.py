@@ -99,7 +99,7 @@ def register(request_json: Dict[str, Any]) -> Dict[str, str]:
     else:
         print("Modo stateful deshabilitado: no se crearán sesiones persistentes.")
         user_id = "0"
-        rt = None
+        rt = RefreshToken(user_id).getRefres()
         until_iso = None
 
     # 5) armamos acces token para el usuario, siempre se usan accesToken
@@ -174,7 +174,7 @@ def login(request_json: Dict[str, Any]) -> Dict[str, str]:
         if DEBUG:
             print("Modo stateful deshabilitado en login: no se crearán sesiones persistentes.")
         user_id = "0"
-        rt = None
+        rt = RefreshToken(user_id).getRefres()
 
     # 5) Access token para el usuario (como en register)
     # usamos el username del dominio (descargado de DB)
@@ -224,7 +224,7 @@ def unlogin(request_json: Dict[str, Any]) -> Dict[str, str]:
         if not ses:
             return {"status": "error", "msg": "stateful session inexistente"}
 
-        aes_server = ses["aesKey"]
+        aes_server = ses["aes"]
 
         # 1) DESCIFRAR TODO EL PAQUETE AES
         try:
@@ -241,6 +241,10 @@ def unlogin(request_json: Dict[str, Any]) -> Dict[str, str]:
         refresh = dec.get("refresh_token")
         if not refresh:
             return {"status": "error", "msg": "refresh_token faltante"}
+        
+        # 3.5) VALIDAR refresh contra Redis (stateful)
+        if not UR.checkSFToken(refresh_token=refresh, id_user=user_id):
+            return {"status": "error", "msg": "refresh_token no valido para esta sesion stateful"}
 
         # 4) BORRAR SESIONES
         UR.eliminar_sesion_statefull(user_id, aes_server)
@@ -448,6 +452,8 @@ def test_unlogin_real():
     print("[LOGIN #1] sesionesRedisStateFull:", SSF.sessiones)
     print("[LOGIN #1] sesionesRedisJWT      :", SJWT.sessiones)
 
+    num_str = input("Enter somting to continue")
+
     # ============================
     # UNLOGIN STATEFUL
     # ============================
@@ -501,6 +507,8 @@ def test_unlogin_real():
 
     print("\n[UNLOGIN STATELESS] Request armado para unlogin():")
     print(json.dumps(stateless_request, indent=4))
+
+    num_str = input("Enter somting to continue")
 
     # ============================
     # UNLOGIN STATELESS

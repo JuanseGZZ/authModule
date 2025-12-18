@@ -1,6 +1,11 @@
 - hacer las sesiones como class. DONE
-- hacer sus orms.
-- pasar las funciones a que consuman db.
+- hacer sus orms. DONE
+- pasar las funciones a que consuman db. DONE
 - hacer refresh().
 - hacer las 4 encripters.
 - hacer las apis definidas.
+
+
+problemas a resolver:
+- se puede generar sesiones que no se borran al desloguear si le simulas un metodo que no es el que usa
+- deberia no romper si no valida bien 
