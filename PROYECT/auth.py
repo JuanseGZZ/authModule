@@ -284,21 +284,193 @@ def unlogin(request_json: Dict[str, Any]) -> Dict[str, str]:
 
         return {"status": "ok", "msg": "unlogin stateless correcto"}
 
+from typing import Dict, Any
+import uuid
+import secrets
+import base64
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-def refresh(request_json: Dict[str, Any]) -> Dict[str, str]: # si ambos metodos estan habilitados va a ver si en el paquete el user_id no sea cero, si es cero le llego un paquete stateless, sino statefull.
-    print("refresh acces token")
+from userRepository import userRepository as UR
+from PaketCipher import Packet
+from accesToken import AccessToken
+from refreshToken import RefreshToken
+
+# si lo tenes en otro lado, deja tu flag
+STATEFULL_ENABLED = True
+
+def _b64u_enc(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).decode().rstrip("=")
+
+def _wrap_new_aes_under_old(old_aes: str, new_aes: str) -> dict:
+    key_bytes = old_aes.encode()[:32].ljust(32, b"0")
+    aesgcm = AESGCM(key_bytes)
+    iv = secrets.token_bytes(12)
+    ct = aesgcm.encrypt(iv, new_aes.encode("utf-8"), None)
+    return {"iv": _b64u_enc(iv), "ciphertext": _b64u_enc(ct)}
+
+def refresh(request_json: Dict[str, Any]) -> Dict[str, Any]:
+    user_id = request_json.get("user_id")
+    if user_id is None:
+        return {"status": "error", "msg": "Falta user_id"}
+
+    # ============================================================
+    # STATEFUL
+    # ============================================================
+    if user_id != "0":
+        if not STATEFULL_ENABLED:
+            return {"status": "error", "msg": "Stateful deshabilitado"}
+
+        ses = UR.get_statefull_session(user_id)
+        if not ses:
+            return {"status": "error", "msg": "stateful session inexistente"}
+
+        aes_old = ses.get("aes")
+        if not isinstance(aes_old, str) or not aes_old:
+            return {"status": "error", "msg": "stateful session corrupta (falta aes)"}
+
+        # 1) Descifrar request con AES vieja (la que esta en sf:{user_id})
+        try:
+            dec = Packet.decryptAES(request_json, aes_key=aes_old)
+        except Exception as e:
+            return {"status": "error", "msg": f"Error AES decrypt: {str(e)}"}
+
+        # 2) Anti adulteracion: la AES interna debe ser la vieja
+        aes_interna = dec.get("aes")
+        if aes_interna != aes_old:
+            return {"status": "error", "msg": "AES interna no coincide. Paquete adulterado"}
+
+        # 3) Validar refresh viejo contra SF (y TTL)
+        old_refresh = dec.get("refresh_token")
+        if not old_refresh:
+            return {"status": "error", "msg": "refresh_token faltante"}
+
+        if UR.checkSFToken(refresh_token=old_refresh, id_user=user_id) is False:
+            return {"status": "error", "msg": "refresh_token no coincide con SF o SF vencida"}
+
+        # 4) Resolver email por refresh (JWT index) y validar refresh en JWT
+        # Nota: esto asume que en tu sistema existe el index jwt_rt:{refresh} -> email.
+        # Si lo resolves distinto, adapta esta parte.
+        from db import redisConecctor as r
+        email = r.get(f"jwt_rt:{old_refresh}")
+        if not email:
+            return {"status": "error", "msg": "No existe sesion JWT asociada a este refresh_token"}
+
+        if not UR.checkRefreshToken(email=email, refreshToken=old_refresh):
+            return {"status": "error", "msg": "refresh_token JWT invalido o vencido"}
+
+        # 5) Nuevo AT tomando sub/role del access_token anterior
+        at_json = dec.get("access_token") or {}
+        payload = (at_json.get("payload") or {}) if isinstance(at_json, dict) else {}
+        sub = payload.get("sub")
+        role = payload.get("role", "user")
+        if not sub:
+            return {"status": "error", "msg": "access_token payload sin sub (no puedo refrescar AT)"}
+
+        new_at = AccessToken(sub=sub, role=role, jti=str(uuid.uuid4()))
+        new_rt = RefreshToken(user_id).getRefres()
+
+        # 6) Rotar AES para stateful
+        new_aes = secrets.token_hex(16)
+
+        # 7) Rotar JWT refresh (borrar viejo y guardar nuevo)
+        UR.eliminar_sesion_refresh(old_refresh)
+        UR.guardar_sesion_refresh(email=email, refresh_token=new_rt)
+
+        # 8) Rotar SF de forma estricta: borrar (validando aes_old) y crear nueva
+        # Esto evita SF vieja "pegada" y deja redis consistente.
+        UR.eliminar_sesion_statefull(user_id=user_id, aes_key=aes_old)
+        UR.guardar_sesion_statefull(user_id=user_id, aes_key=new_aes, refresh_token=new_rt)
+
+        # 9) Responder cifrando TODO con AES vieja (para que el cliente pueda descifrar)
+        packet = Packet(
+            refresh_token=new_rt,
+            access_token=new_at,
+            data={"status": "ok", "mode": "stateful", "aes_rotated": True},
+            aes_key=aes_old,
+            user_id=user_id,
+        )
+        out = packet.encriptAES()
+
+        # 10) Transportar AES nueva envuelta bajo AES vieja
+        out["aes"] = _wrap_new_aes_under_old(old_aes=aes_old, new_aes=new_aes)
+        return out
+
+    # ============================================================
+    # STATELESS
+    # ============================================================
+    else:
+        aes_field = request_json.get("aes", {})
+        if not isinstance(aes_field, dict) or "ciphertext" not in aes_field:
+            return {"status": "error", "msg": "Falta campo aes.ciphertext en stateless"}
+
+        # 1) Descifrar AES real desde RSA
+        try:
+            hs = Packet.decrypt_with_rsa(aes_field["ciphertext"])
+        except Exception as e:
+            return {"status": "error", "msg": f"Error RSA decrypt AES: {str(e)}"}
+
+        aes_key = hs.get("aeskey") or hs.get("aes") if isinstance(hs, dict) else hs
+        if not isinstance(aes_key, str) or not aes_key:
+            return {"status": "error", "msg": "AES decodificada por RSA invalida"}
+
+        # 2) Descifrar payload AES (sin el campo aes que en stateless es RSA)
+        enc_copy = {k: v for k, v in request_json.items() if k != "aes"}
+        try:
+            dec = Packet.decryptAES(enc_copy, aes_key=aes_key)
+        except Exception as e:
+            return {"status": "error", "msg": f"Error decryptAES con aes_key: {str(e)}"}
+
+        old_refresh = dec.get("refresh_token")
+        if not old_refresh:
+            return {"status": "error", "msg": "refresh_token faltante"}
+
+        from db import redisConecctor as r
+        email = r.get(f"jwt_rt:{old_refresh}")
+        if not email:
+            return {"status": "error", "msg": "refresh_token desconocido o vencido"}
+
+        if not UR.checkRefreshToken(email=email, refreshToken=old_refresh):
+            return {"status": "error", "msg": "refresh_token invalido o vencido"}
+
+        at_json = dec.get("access_token") or {}
+        payload = (at_json.get("payload") or {}) if isinstance(at_json, dict) else {}
+        sub = payload.get("sub")
+        role = payload.get("role", "user")
+        if not sub:
+            return {"status": "error", "msg": "access_token payload sin sub (no puedo refrescar AT)"}
+
+        new_at = AccessToken(sub=sub, role=role, jti=str(uuid.uuid4()))
+        new_rt = RefreshToken("0").getRefres()
+
+        UR.eliminar_sesion_refresh(old_refresh)
+        UR.guardar_sesion_refresh(email=email, refresh_token=new_rt)
+
+        # Respuesta stateless: cifrado AES y aes RSA (segun tu protocolo)
+        packet = Packet(
+            refresh_token=new_rt,
+            access_token=new_at,
+            data={"status": "ok", "mode": "stateless"},
+            aes_key=aes_key,
+            user_id="0",
+        )
+        out = packet.encriptAES()
+
+        # si queres mantener aes RSA aca, reemplazalo como ya lo haces en tu codigo
+        return out
+
+
 
 # funcs para exportar, cuando importen esta libreria, ademas de importar los paths prehechos pueden usar estas funciones para otros endpoint para al inicio y al final del endpoit cifrar o decifrar como deberian hacerlo, bajo el primcipio que haya querido tomar ese endpoint.
 # stateLess
-def cyphStateLess(request):
+def cyphStateLess(request_json: Dict[str, Any]) -> Dict[str, str]:
     print("cph")
-def uncyphStateLess(request):
+def uncyphStateLess(request_json: Dict[str, Any]) -> Dict[str, str]:
     print("cph")
 
 # stateFull
-def cyphStateFull(request):
+def cyphStateFull(request_json: Dict[str, Any]) -> Dict[str, str]:
     print("cph")
-def uncyphStateFull(request):
+def uncyphStateFull(request_json: Dict[str, Any]) -> Dict[str, str]:
     print("cph")
 
 
@@ -404,7 +576,6 @@ def test_login_real():
     print("Usuarios registrados en repo:", UR.usuarios)
     print("Check statefull token:", UR.checkSFToken(refresh_token=refresh_token, id_user=user_id_geted))
     print("Check refresh token:", UR.checkRefreshToken("mike@example.com", refreshToken=refresh_token))
-
 #test_login_real()
 
 def test_unlogin_real():
@@ -518,5 +689,190 @@ def test_unlogin_real():
     print("[UNLOGIN STATELESS] sesionesRedisJWT:", SJWT.sessiones)
 
     print("\n=========== FIN test_unlogin_real ===========\n")
+#test_unlogin_real()
 
-test_unlogin_real()
+def test_refresh_real():
+    """
+    Flujo (sin REGISTER):
+    - LOGIN
+    - REFRESH stateful (si aplica) -> rota RT y AES
+    - REFRESH stateless -> request nuevo cifrado con AES vigente y aes por RSA
+    """
+    import json
+    from PaketCipher import rsa_encrypt_b64u_with_public
+
+    def step_pause(title: str):
+        print("\n--------------------------------------------")
+        print(f"[PAUSA] {title}")
+        print("ENTER para continuar | 'q' + ENTER para salir")
+        x = input("> ").strip().lower()
+        if x == "q":
+            raise SystemExit("Test abortado por el usuario.")
+
+    def pretty(obj):
+        try:
+            return json.dumps(obj, indent=4, ensure_ascii=False)
+        except Exception:
+            return str(obj)
+
+    print("\n==============================")
+    print("=== TEST REFRESH REAL (NO REGISTER) ========")
+    print("==============================")
+
+    # AES inicial (la que el cliente usa al arrancar en este test)
+    client_aes = "0123456789abcdef0123456789abcdef"
+
+    email = "mike_refresh@example.com"
+    username = "mike_refresh"
+    password = "contraseña123"
+
+    # ---------------------------
+    # LOGIN
+    # ---------------------------
+    step_pause("LOGIN: ejecuta login() y descifra para obtener RT/AT")
+
+    handshake_payload = {
+        "username": username,
+        "password": password,
+        "email": email,
+        "aeskey": client_aes,
+    }
+    handshake_b64u = rsa_encrypt_b64u_with_public(handshake_payload)
+    request_json = {"handshake_b64u": handshake_b64u}
+
+    print("\n[LOGIN] Ejecutando login()...")
+    login_packet = login(request_json)
+
+    print("[LOGIN] Paquete cifrado (root):")
+    print(pretty(login_packet))
+
+    user_id = login_packet.get("user_id")
+    print(f"\n[LOGIN] user_id: {user_id!r}")
+
+    dec_login = Packet.decryptAES(login_packet, aes_key=client_aes)
+    cur_refresh = dec_login.get("refresh_token")
+    cur_access_json = dec_login.get("access_token")
+
+    print("\n[LOGIN] Decifrado (resumen):")
+    print("  refresh_token:", cur_refresh)
+    print("  access_token payload:", (cur_access_json or {}).get("payload"))
+    print("  aes interna:", dec_login.get("aes"))
+
+    assert UR.checkRefreshToken(email=email, refreshToken=cur_refresh) is True, "LOGIN: refresh_token no valido en Redis"
+
+    step_pause("OK: Ahora REFRESH STATEFUL (si aplica)")
+
+    refreshed_packet_stateful = None
+
+    # ===========================
+    # REFRESH STATEFUL (si aplica)
+    # ===========================
+    if user_id and user_id != "0":
+        print("\n[REFRESH STATEFUL] Ejecutando refresh() con login_packet...")
+        refreshed_packet_stateful = refresh(login_packet)
+
+        print("[REFRESH STATEFUL] Respuesta (root):")
+        print(pretty(refreshed_packet_stateful))
+
+        if "iv" not in refreshed_packet_stateful or "ciphertext" not in refreshed_packet_stateful:
+            raise RuntimeError(f"[REFRESH STATEFUL] refresh() no devolvio paquete AES. Respuesta: {refreshed_packet_stateful}")
+
+        # Se descifra con AES VIEJA (client_aes)
+        dec_ref = Packet.decryptAES(refreshed_packet_stateful, aes_key=client_aes)
+        new_refresh = dec_ref.get("refresh_token")
+        new_access_json = dec_ref.get("access_token")
+        new_aes = dec_ref.get("aes")
+
+        print("\n[REFRESH STATEFUL] Decifrado (resumen):")
+        print("  refresh_token nuevo:", new_refresh)
+        print("  access_token nuevo payload:", (new_access_json or {}).get("payload"))
+        print("  aes nueva (payload):", new_aes)
+
+        step_pause("ASSERTS STATEFUL: RT rota, SF rota, AES rota")
+
+        assert new_refresh and new_refresh != cur_refresh, "STATEFUL: no roto refresh_token"
+        assert UR.checkRefreshToken(email=email, refreshToken=new_refresh) is True, "STATEFUL: nuevo refresh no valido (JWT)"
+        assert UR.checkRefreshToken(email=email, refreshToken=cur_refresh) is False, "STATEFUL: viejo refresh sigue valido (JWT)"
+
+        assert UR.checkSFToken(refresh_token=new_refresh, id_user=user_id) is True, "STATEFUL: SF no actualizado al nuevo refresh"
+        assert UR.checkSFToken(refresh_token=cur_refresh, id_user=user_id) is False, "STATEFUL: SF sigue aceptando refresh viejo"
+
+        assert isinstance(new_aes, str) and new_aes, "STATEFUL: no vino aes nueva en payload"
+        assert new_aes != client_aes, "STATEFUL: AES no roto"
+
+        print("\n[STATEFUL] OK. Cliente rota AES.")
+        # Cliente rota AES
+        client_aes = new_aes
+        cur_refresh = new_refresh
+        cur_access_json = new_access_json
+
+        step_pause("Seguimos con REFRESH STATELESS (request nuevo cifrado con AES vigente)")
+
+    else:
+        print("\n[REFRESH STATEFUL] user_id == '0' (no hay stateful).")
+        step_pause("Seguimos con REFRESH STATELESS usando AES actual")
+
+    # ===========================
+    # REFRESH STATELESS
+    # ===========================
+    print("\n[REFRESH STATELESS] Armando request nuevo cifrado con AES vigente...")
+
+    # Construyo un request AES correcto con Packet para garantizar consistencia iv/ciphertext <-> aes_key
+    # IMPORTANTE: en stateless, el campo aes del request debe ir RSA, pero el contenido debe estar cifrado con esa misma AES.
+    try:
+        at_obj = AccessToken.from_json(cur_access_json)
+    except Exception as e:
+        raise RuntimeError(f"No pude reconstruir AccessToken.from_json(cur_access_json): {e}")
+
+    req_pkt = Packet(
+        refresh_token=cur_refresh,
+        access_token=at_obj,
+        data={"op": "refresh"},
+        aes_key=client_aes,
+        user_id="0",
+    )
+    enc_req = req_pkt.encriptAES()
+
+    # Reemplazo aes (AES-en-AES) por aes RSA
+    stateless_request = {
+        "user_id": "0",
+        "iv": enc_req["iv"],
+        "ciphertext": enc_req["ciphertext"],
+        "aes": {
+            "iv": "AAAAAAAAAA",
+            "ciphertext": rsa_encrypt_b64u_with_public(client_aes),
+        },
+    }
+
+    print("[REFRESH STATELESS] Request:")
+    print(pretty(stateless_request))
+
+    step_pause("Ejecutamos refresh() stateless ahora.")
+
+    refreshed_sl = refresh(stateless_request)
+
+    print("\n[REFRESH STATELESS] Respuesta (root):")
+    print(pretty(refreshed_sl))
+
+    if "iv" not in refreshed_sl or "ciphertext" not in refreshed_sl:
+        raise RuntimeError(f"[REFRESH STATELESS] refresh() no devolvio paquete AES. Respuesta: {refreshed_sl}")
+
+    dec_copy = {k: v for k, v in refreshed_sl.items() if k != "aes"}
+    dec_ref_sl = Packet.decryptAES(dec_copy, aes_key=client_aes)
+
+    new_refresh_sl = dec_ref_sl.get("refresh_token")
+    new_access_sl = dec_ref_sl.get("access_token")
+
+    print("\n[REFRESH STATELESS] Decifrado (resumen):")
+    print("  refresh_token nuevo:", new_refresh_sl)
+    print("  access_token nuevo payload:", (new_access_sl or {}).get("payload"))
+
+    step_pause("ASSERTS STATELESS: RT rota en JWT (SF no aplica)")
+
+    assert new_refresh_sl and new_refresh_sl != cur_refresh, "STATELESS: no roto refresh_token"
+    assert UR.checkRefreshToken(email=email, refreshToken=new_refresh_sl) is True, "STATELESS: nuevo refresh no valido (JWT)"
+    assert UR.checkRefreshToken(email=email, refreshToken=cur_refresh) is False, "STATELESS: viejo refresh sigue valido (JWT)"
+
+    print("\n=========== FIN test_refresh_real ===========\n")
+# Para ejecutar:
+test_refresh_real()
