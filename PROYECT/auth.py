@@ -461,18 +461,192 @@ def refresh(request_json: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # funcs para exportar, cuando importen esta libreria, ademas de importar los paths prehechos pueden usar estas funciones para otros endpoint para al inicio y al final del endpoit cifrar o decifrar como deberian hacerlo, bajo el primcipio que haya querido tomar ese endpoint.
-# stateLess
-def cyphStateLess(request_json: Dict[str, Any]) -> Dict[str, str]:
-    print("cph")
-def uncyphStateLess(request_json: Dict[str, Any]) -> Dict[str, str]:
-    print("cph")
+from typing import Dict, Any
+from PaketCipher import Packet, rsa_encrypt_b64u_with_public
+from accesToken import AccessToken
+from userRepository import userRepository as UR
 
-# stateFull
-def cyphStateFull(request_json: Dict[str, Any]) -> Dict[str, str]:
-    print("cph")
-def uncyphStateFull(request_json: Dict[str, Any]) -> Dict[str, str]:
-    print("cph")
+def _ensure_at_obj(access_token_any: Any) -> AccessToken:
+    """
+    Acepta:
+      - AccessToken ya instanciado
+      - dict generado por AccessToken.to_json()
+    Devuelve AccessToken listo para Packet(...)
+    """
+    if isinstance(access_token_any, AccessToken):
+        return access_token_any
+    if isinstance(access_token_any, dict):
+        return AccessToken.from_json(access_token_any)
+    raise TypeError("access_token debe ser AccessToken o dict (to_json())")
 
+# ============================================================
+# STATELESS
+# ============================================================
+def uncyphStateLess(request_json: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Entrada (stateless request):
+      {
+        "user_id": "0",
+        "iv": "...",
+        "ciphertext": "...",
+        "aes": { "iv": "AAAAAAAAAA", "ciphertext": "<RSA(OAEP) b64u>" },
+        ["files": ...]
+      }
+
+    Salida:
+      payload descifrado + "__aes_key" para que el endpoint pueda responder cifrando con la misma AES.
+    """
+    aes_field = request_json.get("aes", {})
+    if not isinstance(aes_field, dict) or "ciphertext" not in aes_field:
+        raise ValueError("Falta campo aes.ciphertext en request stateless")
+
+    # 1) RSA -> AES real
+    hs = Packet.decrypt_with_rsa(aes_field["ciphertext"])
+    if isinstance(hs, dict):
+        aes_key = hs.get("aeskey") or hs.get("aes")
+    else:
+        aes_key = hs
+
+    if not isinstance(aes_key, str) or not aes_key:
+        raise ValueError("AES decodificada por RSA invalida")
+
+    # 2) AES decrypt del body (sin aes RSA)
+    enc_copy = {k: v for k, v in request_json.items() if k != "aes"}
+    dec = Packet.decryptAES(enc_copy, aes_key=aes_key)
+
+    # 3) En stateless, Packet.decryptAES puede devolver dec["aes"] (si venia AES-en-AES)
+    # pero en tu protocolo stateless el campo aes NO es AES-en-AES, asi que lo ignoramos.
+    dec["__aes_key"] = aes_key
+    dec["__mode"] = "stateless"
+    return dec
+
+
+def cyphStateLess(response_json: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Entrada (payload en claro) debe incluir:
+      - refresh_token: str
+      - access_token: AccessToken o dict(to_json)
+      - data: dict
+      - files: opcional list[dict]
+      - __aes_key: str  (la AES que sacaste de uncyphStateLess)
+
+    Salida:
+      paquete cifrado (iv/ciphertext) con AES y aes RSA en el root.
+    """
+    aes_key = response_json.get("__aes_key")
+    if not isinstance(aes_key, str) or not aes_key:
+        raise ValueError("Falta __aes_key para cifrar respuesta stateless")
+
+    rt = response_json.get("refresh_token", "")
+    at_any = response_json.get("access_token") or {}
+    data = response_json.get("data") or {}
+    files = response_json.get("files") or []
+
+    at_obj = _ensure_at_obj(at_any)
+
+    pkt = Packet(
+        refresh_token=rt,
+        access_token=at_obj,
+        data=data,
+        aes_key=aes_key,
+        user_id="0",
+        files=files,
+    )
+    out = pkt.encriptAES()
+
+    # En stateless: el campo aes NO va AES-en-AES. Va RSA.
+    out["aes"] = {
+        "iv": "AAAAAAAAAA",
+        "ciphertext": rsa_encrypt_b64u_with_public(aes_key),
+    }
+    out["user_id"] = "0"
+    return out
+
+
+# ============================================================
+# STATEFUL
+# ============================================================
+def uncyphStateFull(request_json: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Entrada (stateful request):
+      {
+        "user_id": "<SF user_id>",
+        "iv": "...",
+        "ciphertext": "...",
+        "aes": { "iv": "...", "ciphertext": "..." }  # AES-en-AES (anti-adulteracion)
+        ["files": ...]
+      }
+
+    Salida:
+      payload descifrado + "__aes_key" (AES actual del SF) y "__user_id"
+    """
+    user_id = request_json.get("user_id")
+    if not isinstance(user_id, str) or not user_id or user_id == "0":
+        raise ValueError("user_id invalido para stateful")
+
+    ses = UR.get_statefull_session(user_id)
+    if not ses:
+        raise ValueError("stateful session inexistente")
+    aes_sf = ses.get("aes")
+    if not isinstance(aes_sf, str) or not aes_sf:
+        raise ValueError("stateful session corrupta (falta aes)")
+
+    dec = Packet.decryptAES(request_json, aes_key=aes_sf)
+
+    # anti-adulteracion: la AES interna del paquete debe coincidir con la AES del SF
+    aes_interna = dec.get("aes")
+    if aes_interna != aes_sf:
+        raise ValueError("AES interna no coincide. Paquete adulterado")
+
+    dec["__aes_key"] = aes_sf
+    dec["__user_id"] = user_id
+    dec["__mode"] = "stateful"
+    return dec
+
+
+def cyphStateFull(response_json: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Entrada (payload en claro) debe incluir:
+      - user_id (o __user_id): str
+      - refresh_token: str
+      - access_token: AccessToken o dict(to_json)
+      - data: dict
+      - files: opcional list[dict]
+
+    Cifra usando la AES actual del SF en Redis.
+    """
+    user_id = response_json.get("user_id") or response_json.get("__user_id")
+    if not isinstance(user_id, str) or not user_id or user_id == "0":
+        raise ValueError("user_id invalido para cifrar stateful")
+
+    ses = UR.get_statefull_session(user_id)
+    if not ses:
+        raise ValueError("stateful session inexistente")
+    aes_sf = ses.get("aes")
+    if not isinstance(aes_sf, str) or not aes_sf:
+        raise ValueError("stateful session corrupta (falta aes)")
+
+    rt = response_json.get("refresh_token", "")
+    at_any = response_json.get("access_token") or {}
+    data = response_json.get("data") or {}
+    files = response_json.get("files") or []
+
+    at_obj = _ensure_at_obj(at_any)
+
+    pkt = Packet(
+        refresh_token=rt,
+        access_token=at_obj,
+        data=data,
+        aes_key=aes_sf,
+        user_id=user_id,
+        files=files,
+    )
+    out = pkt.encriptAES()
+    return out
+
+# check token, verifica si el Acces token es valido
+def checkToken():
+    print("Chequea que el Acces token no haya vencido")
 
 # Permite ejecutar directamente desde la consola:
 if __name__ == "__main__":
@@ -531,9 +705,7 @@ def test_register_real():
     print("Testing user get: ",UR.getUser(email="mike@example.com",password="contraseña123",username=None))
 
     print("Traemos usuario desde la base de datos: ", UR.get_user(username=None,email="mike@example.com",password="contraseña123"))
-# Ejecutar test:
 #test_register_real()
-
 
 def test_login_real():
     # === 1) SIMULAR FRONT END ===
@@ -874,5 +1046,180 @@ def test_refresh_real():
     assert UR.checkRefreshToken(email=email, refreshToken=cur_refresh) is False, "STATELESS: viejo refresh sigue valido (JWT)"
 
     print("\n=========== FIN test_refresh_real ===========\n")
-# Para ejecutar:
-test_refresh_real()
+#test_refresh_real()
+
+
+#tests de funciones 
+import json
+from typing import Any, Dict
+from PaketCipher import Packet, rsa_encrypt_b64u_with_public
+from accesToken import AccessToken
+from userRepository import userRepository as UR
+from sessions import sf_delete
+
+def _pretty(x: Any) -> str:
+    try:
+        return json.dumps(x, indent=4, ensure_ascii=False)
+    except Exception:
+        return str(x)
+
+def test_crypto_stateless_ops() -> None:
+    """
+    Simula operatoria stateless:
+      FRONT:
+        - arma Packet AES con client_aes
+        - reemplaza root["aes"] por RSA(client_aes)
+      BACK:
+        - uncyphStateLess() -> obtiene payload en claro + __aes_key
+        - arma respuesta en claro
+        - cyphStateLess() -> cifra con __aes_key y pone aes RSA
+      FRONT:
+        - descifra respuesta con client_aes y valida contenido
+    """
+    print("\n==============================")
+    print("=== TEST CRYPTO STATELESS OPS ===")
+    print("==============================")
+
+    # FRONT: clave AES (simulada)
+    client_aes = "0123456789abcdef0123456789abcdef"
+
+    at = AccessToken(sub="user_stateless", role="user", jti="jti-stateless-1")
+
+    # FRONT: construyo un request AES correcto
+    req_pkt = Packet(
+        refresh_token="rt_front_1",
+        access_token=at,
+        data={"op": "ping", "msg": "hola desde front stateless"},
+        aes_key=client_aes,
+        user_id="0",
+    )
+    enc_req = req_pkt.encriptAES()
+
+    # FRONT: en stateless el campo aes del root va por RSA (no AES-en-AES)
+    # Importante: en tu codigo actual estas cifrando RSA un JSON string (la AES), no un dict.
+    stateless_request = {
+        "user_id": "0",
+        "iv": enc_req["iv"],
+        "ciphertext": enc_req["ciphertext"],
+        "aes": {"iv": "AAAAAAAAAA", "ciphertext": rsa_encrypt_b64u_with_public(client_aes)},
+    }
+
+    print("\n[FRONT] Request stateless (root):")
+    print(_pretty(stateless_request))
+
+    # BACK: descifro entrada
+    dec_in = uncyphStateLess(stateless_request)
+    print("\n[BACK] uncyphStateLess() -> payload claro:")
+    print(_pretty({k: v for k, v in dec_in.items() if not k.startswith("__")}))
+
+    assert dec_in["user_id"] == "0"
+    assert dec_in["data"]["op"] == "ping"
+    assert dec_in.get("__aes_key") == client_aes
+
+    # BACK: armo respuesta en claro
+    resp_plain = {
+        "refresh_token": "rt_back_2",
+        "access_token": AccessToken(sub="user_stateless", role="user", jti="jti-stateless-2"),
+        "data": {"ok": True, "echo": dec_in["data"]},
+        "files": [],
+        "__aes_key": dec_in["__aes_key"],  # necesario para cyphStateLess
+    }
+
+    # BACK: cifro salida
+    enc_resp = cyphStateLess(resp_plain)
+    print("\n[BACK] cyphStateLess() -> respuesta cifrada (root):")
+    print(_pretty(enc_resp))
+
+    # FRONT: descifro respuesta con AES conocida (client_aes)
+    # En stateless, el root["aes"] es RSA, asi que lo saco antes de decryptAES
+    dec_copy = {k: v for k, v in enc_resp.items() if k != "aes"}
+    front_dec = Packet.decryptAES(dec_copy, aes_key=client_aes)
+
+    print("\n[FRONT] Respuesta decifrada:")
+    print(_pretty(front_dec))
+
+    assert front_dec["data"]["ok"] is True
+    assert front_dec["data"]["echo"]["op"] == "ping"
+
+    print("\n[OK] TEST CRYPTO STATELESS OPS PASO\n")
+#test_crypto_stateless_ops()
+
+def test_crypto_stateful_ops() -> None:
+    """
+    Simula operatoria stateful:
+      PRE:
+        - creo SF en Redis (sf:{user_id}) con aes_sf y refresh_sf
+      FRONT:
+        - arma Packet AES con aes_sf y user_id real (no 0)
+      BACK:
+        - uncyphStateFull() -> obtiene payload claro + __aes_key (desde redis)
+        - arma respuesta
+        - cyphStateFull() -> cifra con AES actual del SF
+      FRONT:
+        - descifra respuesta con aes_sf
+    """
+    print("\n==============================")
+    print("=== TEST CRYPTO STATEFUL OPS ===")
+    print("==============================")
+
+    user_id = "sf_user_test_1"
+    aes_sf = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"  # 32 chars
+    refresh_sf = "rt_sf_inicial_1"
+
+    # PRE: limpio SF si existia con misma aes
+    sf_delete(user_id=user_id, aes=aes_sf)
+
+    # PRE: creo SF en redis
+    UR.guardar_sesion_statefull(user_id=user_id, aes_key=aes_sf, refresh_token=refresh_sf)
+
+    # FRONT: request stateful cifrado con aes_sf
+    at = AccessToken(sub="user_stateful", role="user", jti="jti-sf-1")
+    req_pkt = Packet(
+        refresh_token=refresh_sf,
+        access_token=at,
+        data={"op": "ping", "msg": "hola desde front stateful"},
+        aes_key=aes_sf,
+        user_id=user_id,
+    )
+    enc_req = req_pkt.encriptAES()
+
+    print("\n[FRONT] Request stateful (root):")
+    print(_pretty(enc_req))
+
+    # BACK: descifro entrada (AES sale de SF redis)
+    dec_in = uncyphStateFull(enc_req)
+    print("\n[BACK] uncyphStateFull() -> payload claro:")
+    print(_pretty({k: v for k, v in dec_in.items() if not k.startswith("__")}))
+
+    assert dec_in["user_id"] == user_id
+    assert dec_in["data"]["op"] == "ping"
+    assert dec_in.get("__aes_key") == aes_sf
+
+    # BACK: armo respuesta en claro (mismo refresh para este test; en tu app real lo rotas en refresh())
+    resp_plain = {
+        "user_id": user_id,
+        "refresh_token": refresh_sf,
+        "access_token": AccessToken(sub="user_stateful", role="user", jti="jti-sf-2"),
+        "data": {"ok": True, "echo": dec_in["data"]},
+        "files": [],
+    }
+
+    # BACK: cifro salida usando AES de SF (la actual)
+    enc_resp = cyphStateFull(resp_plain)
+    print("\n[BACK] cyphStateFull() -> respuesta cifrada (root):")
+    print(_pretty(enc_resp))
+
+    # FRONT: descifro respuesta con aes_sf
+    front_dec = Packet.decryptAES(enc_resp, aes_key=aes_sf)
+    print("\n[FRONT] Respuesta decifrada:")
+    print(_pretty(front_dec))
+
+    assert front_dec["data"]["ok"] is True
+    assert front_dec["data"]["echo"]["op"] == "ping"
+    assert front_dec.get("aes") == aes_sf  # Packet incluye aes interna (AES-en-AES) en stateful
+
+    # POST: limpio SF
+    sf_delete(user_id=user_id, aes=aes_sf)
+
+    print("\n[OK] TEST CRYPTO STATEFUL OPS PASO\n")
+test_crypto_stateful_ops()

@@ -1,9 +1,10 @@
 - hacer las sesiones como class. DONE
 - hacer sus orms. DONE
 - pasar las funciones a que consuman db. DONE
-- hacer refresh().
-- hacer las 4 encripters.
-- hacer las apis definidas.
+- hacer refresh(). DONE
+- hacer las 4 encripters. DONE
+- hacer check token
+- hacer las apis definidas. 
 
 
 problemas a resolver:
