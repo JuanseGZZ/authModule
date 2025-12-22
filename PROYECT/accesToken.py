@@ -31,7 +31,7 @@ class AccessToken:
         now = datetime.datetime.utcnow()
         self.payload: Dict[str, Any] = {
             "iss": self.issuer,
-            "sub": sub,                             # usuario/subject
+            "sub": sub,                             # mail/subject
             "aud": self.audience,
             "iat": now,
             "nbf": now,
@@ -62,66 +62,6 @@ class AccessToken:
             leeway=self.leeway,
             options={"require": ["exp", "iat", "nbf", "iss", "aud", "jti"]},
         )
-
-    # ---------- validación estricta ----------
-    def validate(
-        self,
-        token: str,
-        *,
-        check_jti: Optional[str] = None,
-        check_role: Optional[str] = None,
-    ) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
-        """
-        Valida:
-          - Header.alg (debe coincidir)
-          - Firma
-          - exp / nbf / iat (con leeway)
-          - iss / aud
-          - (opcional) jti == check_jti
-          - (opcional) role == check_role
-        Retorna: (ok, payload|None, error|None)
-        """
-        try:
-            hdr = jwt.get_unverified_header(token)
-            if hdr.get("alg") != self.algorithm:
-                return (False, None, f"Algoritmo inválido: se esperaba {self.algorithm}")
-            if self.kid and hdr.get("kid") != self.kid:
-                return (False, None, "KID inválido")
-
-            payload = self.decode(token)
-
-            if check_jti is not None and payload.get("jti") != check_jti:
-                return (False, None, "JTI no coincide")
-            if check_role is not None and payload.get("role") != check_role:
-                return (False, None, "Role no coincide")
-
-            # chequeo extra: iat no demasiado en el futuro
-            iat = payload.get("iat")
-            if isinstance(iat, (int, float)):
-                iat_dt = datetime.datetime.utcfromtimestamp(iat)
-            else:
-                iat_dt = iat
-            if isinstance(iat_dt, datetime.datetime):
-                now = datetime.datetime.utcnow()
-                if iat_dt - now > datetime.timedelta(seconds=self.leeway):
-                    return (False, None, "iat está en el futuro")
-
-            return (True, payload, None)
-
-        except jwt.ExpiredSignatureError:
-            return (False, None, "Token expirado")
-        except jwt.ImmatureSignatureError:
-            return (False, None, "Token aún no válido (nbf)")
-        except jwt.InvalidIssuerError:
-            return (False, None, "Issuer inválido (iss)")
-        except jwt.InvalidAudienceError:
-            return (False, None, "Audience inválida (aud)")
-        except jwt.InvalidSignatureError:
-            return (False, None, "Firma inválida")
-        except jwt.MissingRequiredClaimError as e:
-            return (False, None, f"Falta claim requerido: {str(e)}")
-        except jwt.InvalidTokenError as e:
-            return (False, None, f"Token inválido: {str(e)}")
         
     def _ts(self, dt: Any) -> int:
         """Convierte datetime a epoch (int). Si ya es numérico, lo devuelve."""
@@ -200,14 +140,77 @@ class AccessToken:
         at.payload = payload
         return at
 
+    @staticmethod
+    def validate_jwt(token: str) -> Tuple[bool, Optional[Dict[str, Any]], str]:
+        if not isinstance(token, str) or not token:
+            return (False, None, "token vacio")
+
+        pub = os.getenv("RSA_PUBLIC_KEY")
+        iss = os.getenv("JWT_ISSUER", "midominio")
+        aud = os.getenv("JWT_AUDIENCE", "midominio_clients")
+
+        if not pub:
+            return (False, None, "Falta RSA_PUBLIC_KEY en env")
+
+        try:
+            payload = jwt.decode(
+                token,
+                pub,
+                algorithms=["RS256"],
+                audience=aud,
+                issuer=iss,
+                options={
+                    "require": ["exp", "iat", "nbf", "sub", "jti"],
+                },
+            )
+            return (True, payload, "")
+        except Exception as e:
+            return (False, None, str(e))
 
 # ---- demo mínimo (opcional) ----
 def testing():
     import uuid
-    at = AccessToken(sub="user123", role="admin", jti=str(uuid.uuid4()))
-    t = at.encode()
-    ok, payload, err = at.validate(t, check_role="admin")
-    print("OK" if ok else f"ERR: {err}", payload if ok else "")
+    print("\n==============================")
+    print("=== TEST ACCESS TOKEN REAL ===")
+    print("==============================")
+
+    # 1) Emitir AT
+    at = AccessToken(
+        sub="user123",
+        role="admin",
+        jti=str(uuid.uuid4())
+    )
+
+    print("\n[EMISION] Payload original (objeto):")
+    print(at.payload)
+
+    # 2) Encode -> JWT STRING
+    token = at.encode()
+
+    print("\n[EMISION] JWT firmado (string):")
+    print(token)
+
+    # 3) Validar token recibido (como llega al back)
+    print("\n[BACK] Validando token recibido...")
+    ok, payload, err = at.validate(token)
+
+    print("\n[BACK] Resultado validate():")
+    print("  ok     :", ok)
+    print("  payload:", payload)
+    print("  error  :", err)
+
+    # 4) Validacion estatica (sin objeto)
+    print("\n[BACK] Validando con validate_jwt() (sin objeto)...")
+    ok2, payload2, err2 = AccessToken.validate_jwt(token)
+
+    print("\n[BACK] Resultado validate_jwt():")
+    print("  ok     :", ok2)
+    print("  payload:", payload2)
+    print("  error  :", err2)
+
+    print("\n==============================")
+    print("=== FIN TEST ACCESS TOKEN ===")
+    print("==============================\n")
 
 
-#testing()
+testing()

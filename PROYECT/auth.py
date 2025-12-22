@@ -103,7 +103,7 @@ def register(request_json: Dict[str, Any]) -> Dict[str, str]:
         until_iso = None
 
     # 5) armamos acces token para el usuario, siempre se usan accesToken
-    AT = AccessToken(sub=username, role="user", jti=str(uuid.uuid4()))
+    AT = AccessToken(sub=email, role="user", jti=str(uuid.uuid4()))
 
     # planteamos data
     data = {
@@ -111,7 +111,7 @@ def register(request_json: Dict[str, Any]) -> Dict[str, str]:
     }
 
     # generamos paquete 
-    packet = Packet(refresh_token=rt,access_token=AT,data=data,aes_key=aes_key,user_id=user_id)
+    packet = Packet(refresh_token=rt,access_token=AT.encode(),data=data,aes_key=aes_key,user_id=user_id)
 
     # lo encriptamos y formateamos
     encriptedPacket = packet.encriptAES()
@@ -178,7 +178,7 @@ def login(request_json: Dict[str, Any]) -> Dict[str, str]:
 
     # 5) Access token para el usuario (como en register)
     # usamos el username del dominio (descargado de DB)
-    AT = AccessToken(sub=user.username, role="user", jti=str(uuid.uuid4()))
+    AT = AccessToken(sub=user.mail, role="user", jti=str(uuid.uuid4()))
 
     # 6) Data de respuesta (podés ir agregando más cosas después)
     data = {
@@ -188,7 +188,7 @@ def login(request_json: Dict[str, Any]) -> Dict[str, str]:
     # 7) Armar y cifrar paquete AES
     packet = Packet(
         refresh_token=rt,
-        access_token=AT,
+        access_token=AT.encode(),
         data=data,
         aes_key=aes_key,
         user_id=user_id,
@@ -357,14 +357,11 @@ def refresh(request_json: Dict[str, Any]) -> Dict[str, Any]:
 
         if not UR.checkRefreshToken(email=email, refreshToken=old_refresh):
             return {"status": "error", "msg": "refresh_token JWT invalido o vencido"}
-
-        # 5) Nuevo AT tomando sub/role del access_token anterior
-        at_json = dec.get("access_token") or {}
-        payload = (at_json.get("payload") or {}) if isinstance(at_json, dict) else {}
-        sub = payload.get("sub")
-        role = payload.get("role", "user")
+        
+        sub = email
+        role = "user"
         if not sub:
-            return {"status": "error", "msg": "access_token payload sin sub (no puedo refrescar AT)"}
+            return {"status": "error", "msg": "access_token sin sub"}
 
         new_at = AccessToken(sub=sub, role=role, jti=str(uuid.uuid4()))
         new_rt = RefreshToken(user_id).getRefres()
@@ -384,7 +381,7 @@ def refresh(request_json: Dict[str, Any]) -> Dict[str, Any]:
         # 9) Responder cifrando TODO con AES vieja (para que el cliente pueda descifrar)
         packet = Packet(
             refresh_token=new_rt,
-            access_token=new_at,
+            access_token=new_at.encode(),
             data={"status": "ok", "mode": "stateful", "aes_rotated": True},
             aes_key=aes_old,
             user_id=user_id,
@@ -432,14 +429,7 @@ def refresh(request_json: Dict[str, Any]) -> Dict[str, Any]:
         if not UR.checkRefreshToken(email=email, refreshToken=old_refresh):
             return {"status": "error", "msg": "refresh_token invalido o vencido"}
 
-        at_json = dec.get("access_token") or {}
-        payload = (at_json.get("payload") or {}) if isinstance(at_json, dict) else {}
-        sub = payload.get("sub")
-        role = payload.get("role", "user")
-        if not sub:
-            return {"status": "error", "msg": "access_token payload sin sub (no puedo refrescar AT)"}
-
-        new_at = AccessToken(sub=sub, role=role, jti=str(uuid.uuid4()))
+        new_at = AccessToken(sub=email, role="user", jti=str(uuid.uuid4()))
         new_rt = RefreshToken("0").getRefres()
 
         UR.eliminar_sesion_refresh(old_refresh)
@@ -448,7 +438,7 @@ def refresh(request_json: Dict[str, Any]) -> Dict[str, Any]:
         # Respuesta stateless: cifrado AES y aes RSA (segun tu protocolo)
         packet = Packet(
             refresh_token=new_rt,
-            access_token=new_at,
+            access_token=new_at.encode(),
             data={"status": "ok", "mode": "stateless"},
             aes_key=aes_key,
             user_id="0",
@@ -465,19 +455,6 @@ from typing import Dict, Any
 from PaketCipher import Packet, rsa_encrypt_b64u_with_public
 from accesToken import AccessToken
 from userRepository import userRepository as UR
-
-def _ensure_at_obj(access_token_any: Any) -> AccessToken:
-    """
-    Acepta:
-      - AccessToken ya instanciado
-      - dict generado por AccessToken.to_json()
-    Devuelve AccessToken listo para Packet(...)
-    """
-    if isinstance(access_token_any, AccessToken):
-        return access_token_any
-    if isinstance(access_token_any, dict):
-        return AccessToken.from_json(access_token_any)
-    raise TypeError("access_token debe ser AccessToken o dict (to_json())")
 
 # ============================================================
 # STATELESS
@@ -542,11 +519,9 @@ def cyphStateLess(response_json: Dict[str, Any]) -> Dict[str, Any]:
     data = response_json.get("data") or {}
     files = response_json.get("files") or []
 
-    at_obj = _ensure_at_obj(at_any)
-
     pkt = Packet(
         refresh_token=rt,
-        access_token=at_obj,
+        access_token=at_any,
         data=data,
         aes_key=aes_key,
         user_id="0",
@@ -631,11 +606,10 @@ def cyphStateFull(response_json: Dict[str, Any]) -> Dict[str, Any]:
     data = response_json.get("data") or {}
     files = response_json.get("files") or []
 
-    at_obj = _ensure_at_obj(at_any)
 
     pkt = Packet(
         refresh_token=rt,
-        access_token=at_obj,
+        access_token=at_any,
         data=data,
         aes_key=aes_sf,
         user_id=user_id,
@@ -644,9 +618,33 @@ def cyphStateFull(response_json: Dict[str, Any]) -> Dict[str, Any]:
     out = pkt.encriptAES()
     return out
 
+from typing import Tuple
 # check token, verifica si el Acces token es valido
-def checkToken():
-    print("Chequea que el Acces token no haya vencido")
+def checkToken(dec: Dict[str, Any]) -> Tuple[bool, Dict[str, Any] | None, str]:
+    """
+    Valida el Access Token recibido en el paquete ya descifrado.
+    Retorna: (ok, payload, error)
+    """
+    token = dec.get("access_token")
+
+    if not isinstance(token, str) or not token:
+        return (False, None, "access_token faltante o invalido")
+
+    ok, payload, err = AccessToken.validate_jwt(token)
+    if not ok:
+        return (False, None, err)
+
+    return (True, payload, "")
+## ejemplo de uso de libreria con esto 
+#dec = uncyphStateFull(request_json)  # o uncyphStateLess
+#
+#ok, payload, err = checkToken(dec)
+#if not ok:
+#    return {"status": "error", "msg": f"AT invalido: {err}"}
+#
+## payload ya esta verificado
+#user_id = payload["sub"]
+#role = payload["role"]
 
 # Permite ejecutar directamente desde la consola:
 if __name__ == "__main__":
@@ -1083,7 +1081,7 @@ def test_crypto_stateless_ops() -> None:
     # FRONT: clave AES (simulada)
     client_aes = "0123456789abcdef0123456789abcdef"
 
-    at = AccessToken(sub="user_stateless", role="user", jti="jti-stateless-1")
+    at = AccessToken(sub="user_stateless@mail.com", role="user", jti="jti-stateless-1")
 
     # FRONT: construyo un request AES correcto
     req_pkt = Packet(
@@ -1119,7 +1117,7 @@ def test_crypto_stateless_ops() -> None:
     # BACK: armo respuesta en claro
     resp_plain = {
         "refresh_token": "rt_back_2",
-        "access_token": AccessToken(sub="user_stateless", role="user", jti="jti-stateless-2"),
+        "access_token": AccessToken(sub="user_stateless@mail.com", role="user", jti="jti-stateless-2"),
         "data": {"ok": True, "echo": dec_in["data"]},
         "files": [],
         "__aes_key": dec_in["__aes_key"],  # necesario para cyphStateLess
@@ -1173,7 +1171,7 @@ def test_crypto_stateful_ops() -> None:
     UR.guardar_sesion_statefull(user_id=user_id, aes_key=aes_sf, refresh_token=refresh_sf)
 
     # FRONT: request stateful cifrado con aes_sf
-    at = AccessToken(sub="user_stateful", role="user", jti="jti-sf-1")
+    at = AccessToken(sub="user_stateful@mail.com", role="user", jti="jti-sf-1")
     req_pkt = Packet(
         refresh_token=refresh_sf,
         access_token=at,
@@ -1199,7 +1197,7 @@ def test_crypto_stateful_ops() -> None:
     resp_plain = {
         "user_id": user_id,
         "refresh_token": refresh_sf,
-        "access_token": AccessToken(sub="user_stateful", role="user", jti="jti-sf-2"),
+        "access_token": AccessToken(sub="user_stateful@mail.com", role="user", jti="jti-sf-2"),
         "data": {"ok": True, "echo": dec_in["data"]},
         "files": [],
     }

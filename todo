@@ -6,6 +6,11 @@
 - hacer check token
 - hacer las apis definidas. 
 
+- hacer apis para modo KMS
+- hacer funcs que consuman las apis del que este en modo KMS con la ip nomas, para el resto de instnacias
+
+- agregar una logica al role del AT
+
 
 problemas a resolver:
 - se puede generar sesiones que no se borran al desloguear si le simulas un metodo que no es el que usa
