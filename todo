@@ -3,15 +3,28 @@
 - pasar las funciones a que consuman db. DONE
 - hacer refresh(). DONE
 - hacer las 4 encripters. DONE
-- hacer check token
+- hacer check token DONE
 - hacer las apis definidas. 
 
 - hacer apis para modo KMS
 - hacer funcs que consuman las apis del que este en modo KMS con la ip nomas, para el resto de instnacias
 
 - agregar una logica al role del AT
+- editar el login y register para que no desencripten todo
 
 
 problemas a resolver:
 - se puede generar sesiones que no se borran al desloguear si le simulas un metodo que no es el que usa
 - deberia no romper si no valida bien 
+
+
+
+facultades buscadas en la libreria:
+
+- apis heredables login, register, refresh, unlogin.
+- adaptativilidad de db de user con datos de users implementados por logica de negocio.
+- logica de rol para apis de negocio.
+- KMS centralizado instanciable, api de kms y funcion de kms.
+- adaptavilidad de uso de KSM para cifrado en db por instancias agenas.
+- cifrado y decifrado Stateless y statefull funciones de facil uso.
+- validacion de AccesToken por tiempo y por rol.
