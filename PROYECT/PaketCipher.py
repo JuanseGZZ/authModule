@@ -22,7 +22,7 @@ from accesToken import AccessToken
 from FilesCipherHandler import FilesCipherHandler
 
 class Packet:
-    def __init__(self, refresh_token: str, access_token: AccessToken, data: dict, aes_key: str, user_id: str,files: list[dict] | None = None):
+    def __init__(self, refresh_token: str, access_token: str, data: dict, aes_key: str, user_id: str,files: list[dict] | None = None):
         #request format
         #cifradas
         self.refresh_token = refresh_token
@@ -46,7 +46,7 @@ class Packet:
 
         payload = {
             "refresh_token": self.refresh_token,
-            "access_token": self.access_token.to_json(),
+            "access_token": self.access_token,
             "data": self.data
         }
 
@@ -203,7 +203,7 @@ def _test_aes_with_access_token_object():
     print("OK AES-GCM decrypt (estático) ✓")
 
 
-_test_aes_with_access_token_object()
+#_test_aes_with_access_token_object()
 
 
 def test_aes_packet_with_files() -> None:

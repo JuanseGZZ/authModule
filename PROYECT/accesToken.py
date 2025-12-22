@@ -145,23 +145,37 @@ class AccessToken:
         if not isinstance(token, str) or not token:
             return (False, None, "token vacio")
 
-        pub = os.getenv("RSA_PUBLIC_KEY")
-        iss = os.getenv("JWT_ISSUER", "midominio")
-        aud = os.getenv("JWT_AUDIENCE", "midominio_clients")
+        # issuer/audience igual que el resto de tu clase
+        iss = os.getenv("JWT_ISS") or os.getenv("JWT_ISSUER") or "https://tuapp.com"
+        aud = os.getenv("JWT_AUD") or os.getenv("JWT_AUDIENCE") or "https://api.tuapp.com"
+        alg = os.getenv("JWT_SIGN_ALG", "RS256")
 
-        if not pub:
-            return (False, None, "Falta RSA_PUBLIC_KEY en env")
+        # 1) obtener public key (contenido PEM)
+        pub_path = os.getenv("JWT_PUBLIC_KEY_PATH") or os.getenv("RSA_SIGN_PUBLIC_KEY_PATH")
+        pub_pem = os.getenv("JWT_PUBLIC_KEY_PEM")  # opcional si queres guardarla directa en env
 
+        public_key = None
+
+        if pub_pem and "BEGIN PUBLIC KEY" in pub_pem:
+            public_key = pub_pem
+        elif pub_path:
+            try:
+                with open(pub_path, "r") as f:
+                    public_key = f.read()
+            except Exception as e:
+                return (False, None, f"No pude leer public key en {pub_path}: {e}")
+        else:
+            return (False, None, "Falta JWT_PUBLIC_KEY_PATH (o RSA_SIGN_PUBLIC_KEY_PATH) en env")
+
+        # 2) validar JWT (firma + claims)
         try:
             payload = jwt.decode(
                 token,
-                pub,
-                algorithms=["RS256"],
+                public_key,
+                algorithms=[alg],
                 audience=aud,
                 issuer=iss,
-                options={
-                    "require": ["exp", "iat", "nbf", "sub", "jti"],
-                },
+                options={"require": ["exp", "iat", "nbf", "iss", "aud", "sub", "jti"]},
             )
             return (True, payload, "")
         except Exception as e:
@@ -190,15 +204,6 @@ def testing():
     print("\n[EMISION] JWT firmado (string):")
     print(token)
 
-    # 3) Validar token recibido (como llega al back)
-    print("\n[BACK] Validando token recibido...")
-    ok, payload, err = at.validate(token)
-
-    print("\n[BACK] Resultado validate():")
-    print("  ok     :", ok)
-    print("  payload:", payload)
-    print("  error  :", err)
-
     # 4) Validacion estatica (sin objeto)
     print("\n[BACK] Validando con validate_jwt() (sin objeto)...")
     ok2, payload2, err2 = AccessToken.validate_jwt(token)
@@ -213,4 +218,4 @@ def testing():
     print("==============================\n")
 
 
-testing()
+#testing()

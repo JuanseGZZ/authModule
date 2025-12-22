@@ -1174,7 +1174,7 @@ def test_crypto_stateful_ops() -> None:
     at = AccessToken(sub="user_stateful@mail.com", role="user", jti="jti-sf-1")
     req_pkt = Packet(
         refresh_token=refresh_sf,
-        access_token=at,
+        access_token=at.encode(),
         data={"op": "ping", "msg": "hola desde front stateful"},
         aes_key=aes_sf,
         user_id=user_id,
@@ -1186,6 +1186,9 @@ def test_crypto_stateful_ops() -> None:
 
     # BACK: descifro entrada (AES sale de SF redis)
     dec_in = uncyphStateFull(enc_req)
+    
+    print("Chequeo de token AT",checkToken(dec_in))
+
     print("\n[BACK] uncyphStateFull() -> payload claro:")
     print(_pretty({k: v for k, v in dec_in.items() if not k.startswith("__")}))
 
@@ -1197,7 +1200,7 @@ def test_crypto_stateful_ops() -> None:
     resp_plain = {
         "user_id": user_id,
         "refresh_token": refresh_sf,
-        "access_token": AccessToken(sub="user_stateful@mail.com", role="user", jti="jti-sf-2"),
+        "access_token": AccessToken(sub="user_stateful@mail.com", role="user", jti="jti-sf-2").encode(),
         "data": {"ok": True, "echo": dec_in["data"]},
         "files": [],
     }
