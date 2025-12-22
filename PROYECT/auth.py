@@ -1086,7 +1086,7 @@ def test_crypto_stateless_ops() -> None:
     # FRONT: construyo un request AES correcto
     req_pkt = Packet(
         refresh_token="rt_front_1",
-        access_token=at,
+        access_token=at.encode(),
         data={"op": "ping", "msg": "hola desde front stateless"},
         aes_key=client_aes,
         user_id="0",
@@ -1107,6 +1107,9 @@ def test_crypto_stateless_ops() -> None:
 
     # BACK: descifro entrada
     dec_in = uncyphStateLess(stateless_request)
+
+    print("Chequeo de token AT",checkToken(dec_in))
+
     print("\n[BACK] uncyphStateLess() -> payload claro:")
     print(_pretty({k: v for k, v in dec_in.items() if not k.startswith("__")}))
 
@@ -1117,7 +1120,7 @@ def test_crypto_stateless_ops() -> None:
     # BACK: armo respuesta en claro
     resp_plain = {
         "refresh_token": "rt_back_2",
-        "access_token": AccessToken(sub="user_stateless@mail.com", role="user", jti="jti-stateless-2"),
+        "access_token": AccessToken(sub="user_stateless@mail.com", role="user", jti="jti-stateless-2").encode(),
         "data": {"ok": True, "echo": dec_in["data"]},
         "files": [],
         "__aes_key": dec_in["__aes_key"],  # necesario para cyphStateLess
@@ -1133,6 +1136,8 @@ def test_crypto_stateless_ops() -> None:
     dec_copy = {k: v for k, v in enc_resp.items() if k != "aes"}
     front_dec = Packet.decryptAES(dec_copy, aes_key=client_aes)
 
+    print("Chequeo de token AT",checkToken(front_dec))
+
     print("\n[FRONT] Respuesta decifrada:")
     print(_pretty(front_dec))
 
@@ -1140,7 +1145,7 @@ def test_crypto_stateless_ops() -> None:
     assert front_dec["data"]["echo"]["op"] == "ping"
 
     print("\n[OK] TEST CRYPTO STATELESS OPS PASO\n")
-#test_crypto_stateless_ops()
+test_crypto_stateless_ops()
 
 def test_crypto_stateful_ops() -> None:
     """
@@ -1223,4 +1228,4 @@ def test_crypto_stateful_ops() -> None:
     sf_delete(user_id=user_id, aes=aes_sf)
 
     print("\n[OK] TEST CRYPTO STATEFUL OPS PASO\n")
-test_crypto_stateful_ops()
+#test_crypto_stateful_ops()
