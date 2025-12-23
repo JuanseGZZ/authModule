@@ -51,7 +51,6 @@ class User:
     def __repr__(self):
         return f"<User username={self.username!r} mail={self.mail!r} admin={self.is_admin}>"
 
-
 # models_orm.py
 from datetime import datetime
 from sqlalchemy import (
@@ -78,7 +77,6 @@ class UserORM(Base):
     public = relationship("UserPublicDataORM", uselist=False, back_populates="user", cascade="all, delete-orphan")
     protected = relationship("UserProtectedDataORM", uselist=False, back_populates="user", cascade="all, delete-orphan")
 
-
 class UserPublicDataORM(Base):
     __tablename__ = "user_public_data"
 
@@ -91,7 +89,6 @@ class UserPublicDataORM(Base):
 
     user = relationship("UserORM", back_populates="public")
 
-
 class UserProtectedDataORM(Base):
     __tablename__ = "user_protected_data"
 
@@ -103,7 +100,6 @@ class UserProtectedDataORM(Base):
     preferencias = Column(JSONB)
 
     user = relationship("UserORM", back_populates="protected")
-
 
 #mapping -> es para pasar de clase orm a nuestras clases o viseversa
 def orm_to_domain(db_user: UserORM) -> User:
@@ -133,7 +129,6 @@ def orm_to_domain(db_user: UserORM) -> User:
         datapublic=dp,
         dataprotected=dprot,
     )
-
 
 def domain_to_orm(user: User, db_user: UserORM | None = None) -> UserORM:
     if db_user is None:

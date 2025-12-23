@@ -14,9 +14,7 @@ DATABASE_URL = f"postgresql+psycopg2://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_POR
 engine = create_engine(DATABASE_URL, echo=False, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
-
 import redis
-import os
 
 redisConecctor = redis.Redis(
     host=str(os.getenv("REDIS_HOST","localhost")),

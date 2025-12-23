@@ -21,7 +21,6 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
 )
 
-
 class KeyPaths:
     """Strongly-typed container for key file paths."""
     def __init__(
@@ -40,13 +39,11 @@ class KeyPaths:
         self.aes_key = aes_key
         self.aes_mode = aes_mode
 
-
 def _get_env_path(name: str, default: Optional[str] = None) -> Path:
     val = os.getenv(name, default)
     if not val:
         raise ValueError(f"Missing required env var: {name}")
     return Path(val).expanduser().resolve()
-
 
 def _chmod_owner_readwrite(path: Path) -> None:
     try:
@@ -54,17 +51,14 @@ def _chmod_owner_readwrite(path: Path) -> None:
     except Exception:
         pass
 
-
 def _ensure_parent_dir(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-
 
 def _atomic_write_bytes(path: Path, data: bytes) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_bytes(data)
     os.replace(tmp, path)
     _chmod_owner_readwrite(path)
-
 
 def _serialize_private_key_pem(private_key) -> bytes:
     return private_key.private_bytes(
@@ -73,13 +67,11 @@ def _serialize_private_key_pem(private_key) -> bytes:
         encryption_algorithm=NoEncryption(),
     )
 
-
 def _serialize_public_key_pem(public_key) -> bytes:
     return public_key.public_bytes(
         encoding=Encoding.PEM,
         format=PublicFormat.SubjectPublicKeyInfo,
     )
-
 
 def _ensure_ec_keypair(priv_path: Path, pub_path: Path) -> None:
     """
@@ -104,7 +96,6 @@ def _ensure_ec_keypair(priv_path: Path, pub_path: Path) -> None:
     _atomic_write_bytes(priv_path, priv_pem)
     _atomic_write_bytes(pub_path, pub_pem)
 
-
 def _ensure_rsa_keypair(priv_path: Path, pub_path: Path) -> None:
     _ensure_parent_dir(priv_path)
     _ensure_parent_dir(pub_path)
@@ -123,7 +114,6 @@ def _ensure_rsa_keypair(priv_path: Path, pub_path: Path) -> None:
     _atomic_write_bytes(priv_path, priv_pem)
     _atomic_write_bytes(pub_path, pub_pem)
 
-
 def _ensure_aes_key(aes_path: Path, mode: str) -> None:
     """Ensures a 256-bit symmetric master key exists for AES-{mode}."""
     _ensure_parent_dir(aes_path)
@@ -131,7 +121,6 @@ def _ensure_aes_key(aes_path: Path, mode: str) -> None:
         return
     key_bytes = os.urandom(32)
     _atomic_write_bytes(aes_path, key_bytes)
-
 
 def resolve_key_paths(env: Optional[Mapping[str, str]] = None) -> KeyPaths:
     getenv = (env or os.environ).get
@@ -151,7 +140,6 @@ def resolve_key_paths(env: Optional[Mapping[str, str]] = None) -> KeyPaths:
         aes_key=aes_key,
         aes_mode=aes_mode.lower(),
     )
-
 
 def ensure_keys(env: Optional[Mapping[str, str]] = None) -> KeyPaths:
     """

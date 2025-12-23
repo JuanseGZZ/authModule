@@ -3,7 +3,6 @@ from auth import *
 from PaketCipher import rsa_encrypt_b64u_with_public
 import json
 
-
 def test_register_real():
     # === 1) SIMULAR FRONT END ===
     # La aeskey la inventa el front

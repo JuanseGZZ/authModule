@@ -1,33 +1,17 @@
 # auth.py
 import os
 import uuid
-from datetime import datetime, timedelta, timezone
-
-# Importamos los módulos base del sistema de autenticación
-from ensureKeys import ensure_keys
-from PaketCipher import Packet
-from accesToken import AccessToken
-from refreshToken import RefreshToken
-from KMS import KMS, descifrar_con_user_aes, cifrar_con_user_aes
-from userRepository import userRepository as UR
-
-from typing import Dict, Any
-from typing import Tuple
-
-from userModels import User, Base
-from PaketCipher import Packet, rsa_encrypt_b64u_with_public
-from accesToken import AccessToken
-from userRepository import userRepository as UR
-import uuid
-import secrets
 import base64
+import secrets
+from typing import Dict, Any, Tuple
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+from ensureKeys import ensure_keys
+from KMS import KMS
+from PaketCipher import Packet, rsa_encrypt_b64u_with_public
 from userRepository import userRepository as UR
-from PaketCipher import Packet
 from accesToken import AccessToken
 from refreshToken import RefreshToken
-
 
 DEBUG = False
 
@@ -296,10 +280,6 @@ def unlogin(request_json: Dict[str, Any]) -> Dict[str, str]:
 
         return {"status": "ok", "msg": "unlogin stateless correcto"}
 
-
-# si lo tenes en otro lado, deja tu flag
-STATEFULL_ENABLED = True
-
 def _b64u_enc(b: bytes) -> str:
     return base64.urlsafe_b64encode(b).decode().rstrip("=")
 
@@ -450,9 +430,17 @@ def refresh(request_json: Dict[str, Any]) -> Dict[str, Any]:
         # si queres mantener aes RSA aca, reemplazalo como ya lo haces en tu codigo
         return out
 
-
-
 # funcs para exportar, cuando importen esta libreria, ademas de importar los paths prehechos pueden usar estas funciones para otros endpoint para al inicio y al final del endpoit cifrar o decifrar como deberian hacerlo, bajo el primcipio que haya querido tomar ese endpoint.
+## ejemplo de uso de libreria con esto 
+#dec = uncyphStateFull(request_json)  # o uncyphStateLess
+#
+#ok, payload, err = checkToken(dec)
+#if not ok:
+#    return {"status": "error", "msg": f"AT invalido: {err}"}
+#
+## payload ya esta verificado
+#user_id = payload["sub"]
+#role = payload["role"]
 # ============================================================
 # STATELESS
 # ============================================================
@@ -494,7 +482,6 @@ def uncyphStateLess(request_json: Dict[str, Any]) -> Dict[str, Any]:
     dec["__mode"] = "stateless"
     return dec
 
-
 def cyphStateLess(response_json: Dict[str, Any]) -> Dict[str, Any]:
     """
     Entrada (payload en claro) debe incluir:
@@ -533,7 +520,6 @@ def cyphStateLess(response_json: Dict[str, Any]) -> Dict[str, Any]:
     }
     out["user_id"] = "0"
     return out
-
 
 # ============================================================
 # STATEFUL
@@ -574,7 +560,6 @@ def uncyphStateFull(request_json: Dict[str, Any]) -> Dict[str, Any]:
     dec["__user_id"] = user_id
     dec["__mode"] = "stateful"
     return dec
-
 
 def cyphStateFull(response_json: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -631,16 +616,6 @@ def checkToken(dec: Dict[str, Any]) -> Tuple[bool, Dict[str, Any] | None, str]:
         return (False, None, err)
 
     return (True, payload, "")
-## ejemplo de uso de libreria con esto 
-#dec = uncyphStateFull(request_json)  # o uncyphStateLess
-#
-#ok, payload, err = checkToken(dec)
-#if not ok:
-#    return {"status": "error", "msg": f"AT invalido: {err}"}
-#
-## payload ya esta verificado
-#user_id = payload["sub"]
-#role = payload["role"]
 
 def checkTokenRol(dec: Dict[str, Any],rol:str):
     print("checkea que el rol sea valido, y ademas que el at este valido")

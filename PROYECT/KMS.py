@@ -31,7 +31,6 @@ class SingletonMeta(type):
             cls._instances[cls] = instance
         return cls._instances[cls]
 
-
 class KMS(metaclass=SingletonMeta):
     """
     Key Management System (singleton)
@@ -105,7 +104,6 @@ class KMS(metaclass=SingletonMeta):
         nonce, ct = payload[:12], payload[12:]
         plain = self._aesgcm.decrypt(nonce, ct, self._aad)
         return self._b64e(plain)
-
 
 def test():
     kms = KMS()
