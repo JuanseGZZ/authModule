@@ -21,10 +21,10 @@ problemas a resolver:
 
 facultades buscadas en la libreria:
 
-- apis heredables login, register, refresh, unlogin.
-- adaptativilidad de db de user con datos de users implementados por logica de negocio.
-- logica de rol para apis de negocio.
-- KMS centralizado instanciable, api de kms y funcion de kms.
-- adaptavilidad de uso de KSM para cifrado en db por instancias agenas.
-- cifrado y decifrado Stateless y statefull funciones de facil uso.
-- validacion de AccesToken por tiempo y por rol.
+1}- apis heredables login, register, refresh, unlogin.
+2}- adaptativilidad de db de user con datos de users implementados por logica de negocio.
+3}- logica de rol para apis de negocio.
+4}- KMS centralizado instanciable, api de kms y funcion de kms.
+5}- adaptavilidad de uso de KSM para cifrado en db por instancias agenas.
+6}- cifrado y decifrado Stateless y statefull funciones de facil uso.
+7}- validacion de AccesToken por tiempo y por rol.

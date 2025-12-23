@@ -646,6 +646,9 @@ def checkToken(dec: Dict[str, Any]) -> Tuple[bool, Dict[str, Any] | None, str]:
 #user_id = payload["sub"]
 #role = payload["role"]
 
+def checkTokenRol(dec: Dict[str, Any],rol:str):
+    print("checkea que el rol sea valido, y ademas que el at este valido")
+
 # Permite ejecutar directamente desde la consola:
 if __name__ == "__main__":
     # cargamos cosas 
