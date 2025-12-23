@@ -72,7 +72,7 @@ class Packet:
 
         return out
     
-    # desencriptamos algo con un aes especifica
+    # Aesencriptamos algo con un aes especifica
     @staticmethod
     def decryptAES(enc: Dict[str, str], aes_key: str | None = None) -> dict:
         if "iv" not in enc or "ciphertext" not in enc:
@@ -110,7 +110,6 @@ class Packet:
             data.setdefault("files", [])
 
         return data
-
     
     # desencripatdor para handshake RSA
     @staticmethod
@@ -139,7 +138,6 @@ class Packet:
         data = json.loads(plaintext.decode("utf-8"))
         return data
     
-    
 #simulador de mensaje de front 
 def rsa_encrypt_b64u_with_public(payload: Dict[str, str]) -> str:
     """
@@ -162,7 +160,6 @@ def rsa_encrypt_b64u_with_public(payload: Dict[str, str]) -> str:
     )
     return _b64u_enc(ciphertext)
 
-
 def test_paketcipher_rsa_roundtrip() -> None:
     """
     Crea un JSON {"username","password","aeskey"}, lo cifra con la pública RSA
@@ -176,7 +173,6 @@ def test_paketcipher_rsa_roundtrip() -> None:
     print(recovered)
     #assert recovered == sample, f"Round-trip falló:\n  input={sample}\n  out={recovered}"
     print("OK round-trip RSA OAEP (ciphertext_b64u) ✓")
-
 #test_paketcipher_rsa_roundtrip()
 
 def _test_aes_with_access_token_object():
@@ -201,10 +197,7 @@ def _test_aes_with_access_token_object():
     assert data["data"]["ok"] is True
     assert data["aes"] == "0123456789abcdef0123456789abcdef"
     print("OK AES-GCM decrypt (estático) ✓")
-
-
 #_test_aes_with_access_token_object()
-
 
 def test_aes_packet_with_files() -> None:
     """
@@ -264,5 +257,4 @@ def test_aes_packet_with_files() -> None:
     assert recovered == original_bytes
 
     print("✅ Test AES Packet + Files OK")
-
 #test_aes_packet_with_files()

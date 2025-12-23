@@ -1,6 +1,6 @@
 import os
 import base64
-from typing import Optional, Tuple, Dict
+from typing import Dict
 from dotenv import load_dotenv
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -123,7 +123,4 @@ def test():
     assert base64.b64decode(k["plain_b64"]) == base64.b64decode(plain_again_b64), \
         "La clave decifrada NO coincide con la original"
     print("✅ Test OK: la clave decifrada coincide con la original.")
-
-
-
 #test()

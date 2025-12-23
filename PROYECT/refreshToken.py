@@ -2,7 +2,6 @@ import hashlib
 import datetime
 import secrets
 
-
 class RefreshToken:
     def __init__(self, user_id: str) -> None:
         now = datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z"

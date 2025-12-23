@@ -50,19 +50,10 @@ class sesionesRedisJWT:
     @staticmethod
     def delete(refresh_token: str) -> bool:
         return jwt_delete_by_refresh(refresh=refresh_token)
-        #for i, s in enumerate(sesionesRedisJWT.sessiones):
-        #    if s.refreshToken == refresh_token:
-        #        del sesionesRedisJWT.sessiones[i]
-        #        return True
-        #return False
 
     @staticmethod
     def refresh_valido(refresh_token: str) -> bool:
         print("refresh")
-        #for s in sesionesRedisJWT.sessiones:
-        #    if s.refreshToken == refresh_token:
-        #        return _now_utc() < s.until
-        #return False
 
     @staticmethod
     def clear():
@@ -71,13 +62,8 @@ class sesionesRedisJWT:
     @staticmethod
     def check(email: str, refresh_token: str) -> bool:
         return jwt_check(email=email,refresh=refresh_token)
-        #for s in sesionesRedisJWT.sessiones:
-        #    if s.email == email:
-        #        return (s.refreshToken == refresh_token) and (_now_utc() < s.until)
-        #return False
 
-
-# querys statefull to redis
+# --------------- querys statefull to redis ---------------
 def sf_set(user_id: str, aes: str, refresh: str, ttl_sec: int):
     until = int(time()) + ttl_sec
     r.set(
@@ -106,7 +92,6 @@ def sf_delete(user_id: str, aes: str) -> bool:
         return False
     r.delete(f"sf:{user_id}")
     return True
-
 
 class sesionesRedisStateFull:
     sessiones = [] #cache de sesiones
@@ -137,13 +122,6 @@ class sesionesRedisStateFull:
     @staticmethod
     def delete(user_id: str, aes_key: str) -> bool:
         return sf_delete(user_id=user_id,aes=aes_key)
-        #for i, s in enumerate(sesionesRedisStateFull.sessiones):
-        #    if s.user_id == user_id:
-        #        if s.aesKey != aes_key:
-        #            return False
-        #        del sesionesRedisStateFull.sessiones[i]
-        #        return True
-        #return False
     
     @staticmethod
     def clear() -> None:
@@ -152,35 +130,18 @@ class sesionesRedisStateFull:
     @staticmethod
     def get(user_id: str):
         return sf_get(user_id=user_id)
-        #for s in sesionesRedisStateFull.sessiones:
-        #    if s.user_id == user_id:
-        #        return {
-        #            "aesKey": s.aesKey,
-        #            "until": s.until,
-        #            "refreshToken": s.refreshToken,
-        #        }
-        #return None
     
     @staticmethod
     def check(refresh_token: str, user_id: str) -> bool:
         return sf_check(user_id=user_id,refresh=refresh_token)
-        #ses = sesionesRedisStateFull.get(user_id)
-        #if not ses:
-        #    return False
-        #if ses.get("refreshToken") != refresh_token:
-        #    return False
-        #until = ses.get("until")
-        #if isinstance(until, str):
-        #    try:
-        #        if until.endswith("Z"):
-        #            until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
-        #        else:
-        #            until_dt = datetime.fromisoformat(until)
-        #    except ValueError:
-        #        return False
-        #else:
-        #    until_dt = until
-        #return _now_utc() < until_dt
+
+
+
+
+
+
+
+
 
 
 
