@@ -6,18 +6,16 @@
 - hacer check token DONE
 - hacer las apis definidas. 
 
-- hacer apis para modo KMS
-- hacer funcs que consuman las apis del que este en modo KMS con la ip nomas, para el resto de instnacias
+- Hacer apis para modo KMS
+- Hacer funcs que consuman las apis del que este en modo KMS con la ip nomas, para el resto de instnacias
 
-- agregar una logica al role del AT
-- editar el login y register para que no desencripten todo
+- Agregar una logica al role del AT
+- Editar el login y register para que no encripten/desencripten todo con la rsa, sino que encripte una aes con la RSA del server.
 
 
 problemas a resolver:
 - se puede generar sesiones que no se borran al desloguear si le simulas un metodo que no es el que usa
 - deberia no romper si no valida bien 
-
-
 
 facultades buscadas en la libreria:
 

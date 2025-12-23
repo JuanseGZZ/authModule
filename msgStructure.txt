@@ -6,10 +6,9 @@ handshake msg:
 common msg:
 - "user_id" (no va cifrado)
 - "iv" (no va cifrado)
-- "aes" (esto siempre esta, si el msg es statefull va a estar cifrada con ella misma, si es stateless va a estar cifrada con la rsa publica del server)
-{
+- "aes" (esto siempre esta, si el msg es statefull va a estar cifrada con ella misma, si es stateless va a estar cifrada con la rsa publica del server){
     - iv (de aes)
-    - aesCyphered (cifrados con la aes)
+    - aesCyphered (cifrados con la aes, o con la RSA en handshake)
 }
 - "data" (cifrada con la aes)
 - "files" (cifrados con la aes)
