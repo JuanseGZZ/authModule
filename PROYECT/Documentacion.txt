@@ -2,7 +2,7 @@
 
 LOGICA DE ROL (AT), es logica de negocio y tengo que buscar una forma de facil manejo
 
-Manipular usuarios y data:
+Manipulacion del Framework:
 en "userModels.py" podemos modificar los models para integrar con nuestro proyecto.
 en "userRepository.py" vamos a encontrar las funciones para gestionar usuarios 
 - UR.create_user(email: str, username: str, password: str, is_admin: bool = False) -> User | str:
@@ -10,3 +10,14 @@ en "userRepository.py" vamos a encontrar las funciones para gestionar usuarios
 - updateUserOnDB(user: User) -> bool:
 - getDataUncypher(user: User, data: str) -> str | None: # decifra la data que le pases segun la clave del usuario, seria (usuario,usuario.dni) como ejemplo.
 - setDataCipher(user:User, data_claro:str): # cifras un dato con la aes de un user.
+en "auth.py" podemos encontrar las funciones operarias 
+- uncyphStateFull(request_json: Dict[str, Any]) -> Dict[str, Any]:
+- cyphStateFull(response_json: Dict[str, Any]) -> Dict[str, Any]:
+- checkToken(dec: Dict[str, Any]) -> Tuple[bool, Dict[str, Any] | None, str]:
+- checkTokenRol(dec: Dict[str, Any],rol:str):
+en "authApi.py" vamos a encontrar herencias de apis para:
+- login
+- register
+- refresh
+- unlogin
+en ".env" vamos a encontrar las configuraciones y credenciales del framework
