@@ -1,0 +1,1 @@
+# apis heredables de fast para el KMS

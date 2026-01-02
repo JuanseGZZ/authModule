@@ -8,8 +8,6 @@ en "userRepository.py" vamos a encontrar las funciones para gestionar usuarios
 - UR.create_user(email: str, username: str, password: str, is_admin: bool = False) -> User | str:
 - UR.get_user(email: str | None, username: str | None, password: str) -> User | None:
 - updateUserOnDB(user: User) -> bool:
-- getDataUncypher(user: User, data: str) -> str | None: # decifra la data que le pases segun la clave del usuario, seria (usuario,usuario.dni) como ejemplo.
-- setDataCipher(user:User, data_claro:str): # cifras un dato con la aes de un user.
 en "auth.py" podemos encontrar las funciones operarias 
 - uncyphStateFull(request_json: Dict[str, Any]) -> Dict[str, Any]:
 - cyphStateFull(response_json: Dict[str, Any]) -> Dict[str, Any]:
@@ -20,4 +18,7 @@ en "authApi.py" vamos a encontrar herencias de apis para:
 - register
 - refresh
 - unlogin
-en ".env" vamos a encontrar las configuraciones y credenciales del framework
+en ".env" vamos a encontrar las configuraciones y credenciales del framework.
+en "KSMController" vamos a encortrar las funcs: 
+- getDataUncypher(user: User, data: str) -> str | None: # decifra la data que le pases segun la clave del usuario, seria (usuario,usuario.dni) como ejemplo.
+- setDataCipher(user:User, data_claro:str): # cifras un dato con la aes de un user.
