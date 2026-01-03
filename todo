@@ -6,7 +6,7 @@
 - hacer check token DONE
 - hacer las apis definidas. 
 
-- Hacer apis para modo KMS
+- Hacer apis para modo KMS. DONE (falta testearlo)
 - Hacer funcs que consuman las apis del que este en modo KMS con la ip nomas, para el resto de instnacias
 
 - Agregar una logica al role del AT
