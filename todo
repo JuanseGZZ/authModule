@@ -7,6 +7,7 @@
 - hacer las apis definidas. 
 
 - Hacer apis para modo KMS. DONE (falta testearlo)
+< voy a hacer un server kms directamente, y por el momento si quieren que una instancia sea kms lo ejecuten, tambien me va a servir para testear >
 - Hacer funcs que consuman las apis del que este en modo KMS con la ip nomas, para el resto de instnacias
 
 - Agregar una logica al role del AT
