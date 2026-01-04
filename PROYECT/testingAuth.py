@@ -489,7 +489,7 @@ def test_crypto_stateless_ops() -> None:
     assert front_dec["data"]["echo"]["op"] == "ping"
 
     print("\n[OK] TEST CRYPTO STATELESS OPS PASO\n")
-test_crypto_stateless_ops()
+#test_crypto_stateless_ops()
 
 def test_crypto_stateful_ops() -> None:
     """
@@ -572,4 +572,4 @@ def test_crypto_stateful_ops() -> None:
     sf_delete(user_id=user_id, aes=aes_sf)
 
     print("\n[OK] TEST CRYPTO STATEFUL OPS PASO\n")
-#test_crypto_stateful_ops()
+test_crypto_stateful_ops()

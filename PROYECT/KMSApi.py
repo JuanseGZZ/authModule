@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from KMS import KMS
-from KMSCrypto import ensure_rsa_keys_once_anywhere, load_kms_privkey, unpack_hybrid, aesgcm_encrypt_json
+from KMSCrypto import load_kms_privkey, unpack_hybrid, aesgcm_encrypt_json, ensure_kms_keys_present
 
 load_dotenv()
 router = APIRouter(prefix="/v1/kms", tags=["kms"])
@@ -20,7 +20,7 @@ class HybridResp(BaseModel):
 @router.post("/decifrar-key", response_model=HybridResp)
 def api_decifrar_key(req: HybridReq):
     try:
-        ensure_rsa_keys_once_anywhere()
+        ensure_kms_keys_present()
         priv = load_kms_privkey()
 
         obj, sess_key = unpack_hybrid(priv, req.model_dump())
@@ -40,7 +40,7 @@ def api_decifrar_key(req: HybridReq):
 @router.post("/crear-key-user", response_model=HybridResp)
 def api_crear_key_user(req: HybridReq):
     try:
-        ensure_rsa_keys_once_anywhere()
+        ensure_kms_keys_present()
         priv = load_kms_privkey()
 
         obj, sess_key = unpack_hybrid(priv, req.model_dump())

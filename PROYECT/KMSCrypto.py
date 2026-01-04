@@ -29,45 +29,10 @@ def kms_pub_path() -> str:
 def kms_priv_path() -> str:
     return _stripq(os.getenv("KMS_KEY_PATH_PRI", ""))
 
-def ensure_kms_rsa_keys_once(key_size: int = 2048) -> Dict[str, str]:
-    if not env_bool("KMS_IS_IT_INSTANCE", False):
-        raise RuntimeError("ensure_kms_rsa_keys_once solo en instancia KMS")
-
-    pub_p = kms_pub_path()
-    pri_p = kms_priv_path()
-    if not pub_p or not pri_p:
-        raise RuntimeError("Faltan KMS_KEY_PATH_PUB/KMS_KEY_PATH_PRI")
-
-    os.makedirs(os.path.dirname(pub_p) or ".", exist_ok=True)
-    os.makedirs(os.path.dirname(pri_p) or ".", exist_ok=True)
-
-    if os.path.exists(pub_p) and os.path.exists(pri_p):
-        return {"pub": pub_p, "pri": pri_p}
-
-    priv = rsa.generate_private_key(public_exponent=65537, key_size=key_size)
-    pub = priv.public_key()
-
-    pri_bytes = priv.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
-    pub_bytes = pub.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo,
-    )
-
-    with open(pri_p, "wb") as f:
-        f.write(pri_bytes)
-    with open(pub_p, "wb") as f:
-        f.write(pub_bytes)
-
-    return {"pub": pub_p, "pri": pri_p}
-
-def ensure_rsa_keys_once_anywhere(key_size: int = 2048) -> Dict[str, str]:
+def ensure_kms_keys_present(key_size: int = 2048) -> Dict[str, str]:
     """
-    Igual que ensure_kms_rsa_keys_once, pero NO valida KMS_IS_IT_INSTANCE.
-    Se usa desde KMSApi porque KMSApi implica "soy KMS".
+    Asegura que existan pub/priv del KMS. Si faltan, las genera.
+    No valida KMS_IS_IT_INSTANCE: la decision de 'quien la usa' es del caller.
     """
     pub_p = kms_pub_path()
     pri_p = kms_priv_path()
