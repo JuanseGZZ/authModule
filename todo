@@ -6,18 +6,19 @@
 - hacer check token DONE
 - hacer las apis definidas. 
 
-- Hacer apis para modo KMS. DONE (falta testearlo)
+- Hacer apis para modo KMS. DONE 
 < voy a hacer un server kms directamente, y por el momento si quieren que una instancia sea kms lo ejecuten, tambien me va a servir para testear >
-- Hacer funcs que consuman las apis del que este en modo KMS con la ip nomas, para el resto de instnacias
+- Hacer funcs que consuman las apis del que este en modo KMS con la ip nomas, para el resto de instnacias. DONE
 
 - Agregar una logica al role del AT
-- Editar el login y register para que no encripten/desencripten todo con la rsa, sino que encripte una aes con la RSA del server.
-
 - Hacer apis heredables de authapi.py
+- Hacer main fastapi para que herede y escuche esas apis.
+- Hacer apis custom en ese main para usar las funciones del framework
 
 problemas a resolver:
 - se puede generar sesiones que no se borran al desloguear si le simulas un metodo que no es el que usa
-- deberia no romper si no valida bien 
+- deberia no romper si no valida bien
+- Editar el login y register para que no encripten/desencripten todo con la rsa, sino que encripte una aes con la RSA del server. 
 
 facultades buscadas en la libreria:
 
