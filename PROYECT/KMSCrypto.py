@@ -34,6 +34,7 @@ def ensure_kms_keys_present(key_size: int = 2048) -> Dict[str, str]:
     Asegura que existan pub/priv del KMS. Si faltan, las genera.
     No valida KMS_IS_IT_INSTANCE: la decision de 'quien la usa' es del caller.
     """
+    print("---ENSURING CRYPTO PASSWORDS---")
     pub_p = kms_pub_path()
     pri_p = kms_priv_path()
     if not pub_p or not pri_p:

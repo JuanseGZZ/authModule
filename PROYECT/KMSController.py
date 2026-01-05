@@ -44,6 +44,8 @@ class KMSController:
 
         url = _kms_base_url() + "/v1/kms/decifrar-key"
         r = httpx.post(url, json=env, timeout=_kms_timeout())
+        if r.status_code >= 400:
+            print("KMS ERROR", r.status_code, r.text)  # <- esto
         r.raise_for_status()
 
         resp = r.json()
@@ -62,10 +64,14 @@ class KMSController:
 
         url = _kms_base_url() + "/v1/kms/crear-key-user"
         r = httpx.post(url, json=env, timeout=_kms_timeout())
+        if r.status_code >= 400:
+            print("KMS ERROR", r.status_code, r.text)  # <- esto
         r.raise_for_status()
 
         resp = r.json()
+        print(f"LOS DATOS RETORNADOS ENCRIPTADOS: {resp}")
         obj = aesgcm_decrypt_json(sess_key, resp["nonce_b64"], resp["ct_b64"])
+        print(f"LOS DATOS RETORNADOS: {obj}")
         return obj
 
     # -------------------------

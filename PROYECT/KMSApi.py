@@ -20,7 +20,6 @@ class HybridResp(BaseModel):
 @router.post("/decifrar-key", response_model=HybridResp)
 def api_decifrar_key(req: HybridReq):
     try:
-        ensure_kms_keys_present()
         priv = load_kms_privkey()
 
         obj, sess_key = unpack_hybrid(priv, req.model_dump())
@@ -40,14 +39,15 @@ def api_decifrar_key(req: HybridReq):
 @router.post("/crear-key-user", response_model=HybridResp)
 def api_crear_key_user(req: HybridReq):
     try:
-        ensure_kms_keys_present()
         priv = load_kms_privkey()
 
         obj, sess_key = unpack_hybrid(priv, req.model_dump())
         # obj puede traer {"op":"crearKeyUser"} por consistencia; no es obligatorio
         created = KMS().crearKeyUser()  # tu funcion devuelve dict con plain_b64/encrypted_b64 :contentReference[oaicite:0]{index=0}
+        print(f"LOS DATOS RETORNADOS: {created}")
 
         enc = aesgcm_encrypt_json(sess_key, created)
+        print(f"LOS DATOS RETORNADOS ENCRIPTADOS: {obj}")
         return HybridResp(**enc)
 
     except HTTPException:
