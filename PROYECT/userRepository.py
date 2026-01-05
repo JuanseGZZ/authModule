@@ -303,4 +303,4 @@ def test_creacion_usuario():
     print("\nLISTA DE USUARIOS EN REPO:", len(userRepository.usuarios))
     print("=================================\n")
 
-test_creacion_usuario()
+#test_creacion_usuario()

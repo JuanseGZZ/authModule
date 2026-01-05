@@ -11,7 +11,7 @@
 - Hacer funcs que consuman las apis del que este en modo KMS con la ip nomas, para el resto de instnacias. DONE
 
 - Agregar una logica al role del AT
-- Hacer apis heredables de authapi.py
+- Hacer apis heredables de authapi.py DONE
 - Hacer main fastapi para que herede y escuche esas apis.
 - Hacer apis custom en ese main para usar las funciones del framework
 
