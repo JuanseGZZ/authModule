@@ -1,0 +1,5 @@
+El front va a poseer las siguientes funcionalidades.
+
+
+vamos a tener funciones. 
+login, unlogin, register, sendStateless, sendStateful.

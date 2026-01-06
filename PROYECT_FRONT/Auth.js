@@ -1,0 +1,1 @@
+// este va a llevar todo el core de la app
