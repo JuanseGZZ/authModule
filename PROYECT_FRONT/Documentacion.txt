@@ -1,5 +1,10 @@
 El front va a poseer las siguientes funcionalidades.
 
-
 vamos a tener funciones. 
-login, unlogin, register, sendStateless, sendStateful.
+> login, unlogin, register, sendStateless, sendStateful.
+login(url,)
+
+tiene que.
+- gestionar los tokens de forma automatica
+- mantener las sesiones activas automaticamente.
+- guardar las variables en sitios seguros.
