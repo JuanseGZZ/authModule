@@ -1,0 +1,1 @@
+- armar la api y testear ahi con los modulos.

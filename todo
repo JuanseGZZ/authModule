@@ -12,8 +12,8 @@
 
 - Agregar una logica al role del AT
 - Hacer apis heredables de authapi.py DONE
-- Hacer main fastapi para que herede y escuche esas apis.
-- Hacer apis custom en ese main para usar las funciones del framework
+- Hacer main fastapi para que herede y escuche esas apis. DONE
+- Hacer apis custom en ese main para usar las funciones del framework. DONE
 
 problemas a resolver:
 - se puede generar sesiones que no se borran al desloguear si le simulas un metodo que no es el que usa

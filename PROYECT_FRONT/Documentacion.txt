@@ -8,3 +8,5 @@ tiene que.
 - gestionar los tokens de forma automatica
 - mantener las sesiones activas automaticamente.
 - guardar las variables en sitios seguros.
+
+
