@@ -2,9 +2,9 @@
 
 // protocol/Packet.js
 
-import { b64uEncode, b64uDecode } from "../crypto/Base64Url.js";
-import { aesGcmEncrypt, aesGcmDecrypt } from "../crypto/AESGCM.js";
-import { encryptFiles, decryptFiles } from "../protocol/FilesCipherHandler.js";
+import { b64uEncode, b64uDecode } from "./crypto/Base64Url.js";
+import { aesGcmEncrypt, aesGcmDecrypt } from "./crypto/AESGCM.js";
+import { encryptFiles, decryptFiles } from "./crypto/FilesCipherHandler.js";
 
 export class Packet {
   constructor({

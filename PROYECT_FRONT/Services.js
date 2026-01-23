@@ -16,12 +16,39 @@ import { loginFetch, registerFetch, refreshFetch, unloginFetch } from "./Api.js"
       stateful: Packet.encryptAES() (incluye aes AES-en-AES)
       stateless: aes.ciphertext = RSA({aeskey}), y payload AES sin campo aes
 */
+import { AUTH_BASE_URL } from "./Env.js";
+
+const LS_KEY_PEM = "auth:rsa_pub_pem";
+const LS_KEY_KID = "auth:rsa_pub_kid";
+
+export async function getServerPublicKeyPemCached() {
+  const cachedPem = localStorage.getItem(LS_KEY_PEM);
+  const cachedKid = localStorage.getItem(LS_KEY_KID);
+
+  // Si ya esta cacheada, igual podes usarla directo.
+  // Si queres validar, podes pegarle al endpoint y comparar kid.
+  if (cachedPem && cachedKid) return { pem: cachedPem, kid: cachedKid };
+
+  const res = await fetch(AUTH_BASE_URL + "/v1/auth/public-key");
+  if (!res.ok) throw new Error("No se pudo obtener public key del server");
+
+  const data = await res.json();
+  const pem = data.public_key_pem;
+  const kid = data.kid;
+
+  if (typeof pem !== "string" || pem.length < 100) {
+    throw new Error("public_key_pem invalida");
+  }
+
+  localStorage.setItem(LS_KEY_PEM, pem);
+  if (typeof kid === "string" && kid) localStorage.setItem(LS_KEY_KID, kid);
+
+  return { pem, kid };
+}
+
 export class AuthService {
-  constructor({ rsaPublicKeyPem }) {
-    if (typeof rsaPublicKeyPem !== "string" || !rsaPublicKeyPem.includes("BEGIN PUBLIC KEY")) {
-      throw new Error("AuthService: rsaPublicKeyPem invalido (PEM PUBLIC KEY requerido)");
-    }
-    this.rsaPublicKeyPem = rsaPublicKeyPem;
+  constructor() {
+    this.rsaPublicKeyPem = null;
     this._rsaKeyCache = null;
   }
 
@@ -177,8 +204,15 @@ export class AuthService {
 
     return b64uEncode(new Uint8Array(ct));
   }
+  
+  async _ensurePublicKeyLoaded() {
+    if (this.rsaPublicKeyPem) return;
+    const { pem } = await getServerPublicKeyPemCached();
+    this.rsaPublicKeyPem = pem;
+  }
 
   async _getRsaPublicKey() {
+    await this._ensurePublicKeyLoaded();
     if (this._rsaKeyCache) return this._rsaKeyCache;
 
     const spkiDer = pemPublicKeyToDer(this.rsaPublicKeyPem);

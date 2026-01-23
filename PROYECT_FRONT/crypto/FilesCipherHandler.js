@@ -1,7 +1,7 @@
-// protocol/FilesCipherHandler.js
+// /FilesCipherHandler.js
 
-import { b64uEncode, b64uDecode } from "../crypto/Base64Url.js";
-import { aesGcmEncrypt, aesGcmDecrypt } from "../crypto/AESGCM.js";
+import { b64uEncode, b64uDecode } from "./Base64Url.js";
+import { aesGcmEncrypt, aesGcmDecrypt } from "./AESGCM.js";
 
 // ---------- base64 "normal" (no urlsafe) ----------
 function b64EncodeStd(bytes) {

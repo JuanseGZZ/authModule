@@ -144,3 +144,27 @@ def api_unlogin(req: StatefulOrStatelessPacketRequest) -> Dict[str, Any]:
         _bad_request(str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error interno unlogin: {str(e)}")
+
+
+# para la public
+from fastapi import Response
+import os
+from ensureKeys import ensure_keys
+
+@router.get("/public-key")
+def api_public_key(response: Response) -> Dict[str, Any]:
+    # Asegura que existan las keys y obtiene path de la public
+    keys = ensure_keys()
+    pub_path = keys.ec_pub  # RSA de cifrado (en tu ensure_keys "ec" genera RSA 3072)
+
+    pem = pub_path.read_text(encoding="utf-8")
+
+    # Cache HTTP (opcional pero bueno): 1 año, immutable
+    # Si algun dia rotas la key, cambia el valor kid y el front la vuelve a pedir.
+    response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+
+    # "kid" simple basado en mtime y size (suficiente para invalidar cache)
+    st = os.stat(pub_path)
+    kid = f"rsa-enc-{int(st.st_mtime)}-{st.st_size}"
+
+    return {"public_key_pem": pem, "kid": kid}
