@@ -1,1 +1,35 @@
 - armar la api y testear ahi con los modulos.
+
+
+pensando.
+
+uno va a importar de models.js:
+packet
+
+uno va a importar de auth.js:
+
+las funciones: 
+status = register(user,email,password)
+status = login(user,email=opcional,password)
+status = unlogin()
+packet = sendStateless(url,packet)
+packet = sendStateful(url,packet)
+
+auth.js de trasfondo va a llevar:
+- register y login las peticiones (casi estan hechas)
+- register y login guardar las sesiones en lugares seguros
+- unlogin -> ver si hay una sesion activa y mandar a pedir desactivacion.
+- sendStateful y sendStateless
+  + usar el tipo de sesion correspondiente que haya.
+  + cuando no hay sesion avisar.
+  + cuando la sesion se vencio refrescarla.
+    * esto va a checkear que el AT que tenemos este vencido antes de enviar siempre.
+    * si al enviar recibe que la sesion de sendStateful vencio pide otra 
+  + si no se puede refrescar avisar.
+  + enviar peticion y avisar si falla. 
+- sendStateless
+  + cambiar aes en cada envio.
+
+
+TODO.:
+* Agregar un StatefulEnabled=TRUE // para que el FW verifique si esta o no habilitado a usar. 
