@@ -3,7 +3,7 @@ Te pase el proyecto que estoy haciendo, es un framework de auth, tiene dos modos
 handshake msg:
 - "handshake_b64u" -> es el data cifrado con la publica del server
 
-common msg:
+Common Plain msg:
 - "user_id" (no va cifrado)
 - "iv" (no va cifrado)
 - "aes" (esto siempre esta, si el msg es statefull va a estar cifrada con ella misma, si es stateless va a estar cifrada con la rsa publica del server){
@@ -15,4 +15,13 @@ common msg:
 - "refresh_token" (cifrados con la aes)
 - "access_token" (cifrados con la aes)
 
-
+Common Cyphered msg:
+{
+  "iv": "YQpXq8p3gXfW2uQ1",
+  "ciphertext": "Gv0n2i7rYB7F5j0xR7uQ2c0YxqW0x0w5m1m2i3n4o5p6q7r8",
+  "user_id": "c2f3b9d2-3d4e-4c2a-9e2f-123456789abc",
+  "aes": {
+    "iv": "q1w2e3r4t5y6u7i8",
+    "ciphertext": "X9a8b7c6d5e4f3g2h1j0k9l8m7n6o5p4"
+  }
+}
