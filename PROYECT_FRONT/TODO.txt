@@ -4,16 +4,16 @@
 pensando.
 
 uno va a importar de models.js:
-packet
+packet<class>
 
 uno va a importar de auth.js:
 
 las funciones: 
-status = register(user,email,password)
-status = login(user,email=opcional,password)
-status = unlogin()
-packet = sendStateless(url,packet)
-packet = sendStateful(url,packet)
+status<dict> = register(user,email,password)
+status<dict> = login(user,email=opcional,password)
+status<dict> = unlogin()
+packet<objt> = sendStateless(url,packet)
+packet<objt> = sendStateful(url,packet)
 
 auth.js de trasfondo va a llevar:
 - register y login las peticiones (casi estan hechas)
@@ -24,11 +24,12 @@ auth.js de trasfondo va a llevar:
   + cuando no hay sesion avisar.
   + cuando la sesion se vencio refrescarla.
     * esto va a checkear que el AT que tenemos este vencido antes de enviar siempre.
-    * si al enviar recibe que la sesion de sendStateful vencio pide otra 
   + si no se puede refrescar avisar.
   + enviar peticion y avisar si falla. 
 - sendStateless
   + cambiar aes en cada envio.
+- StatefulEnabled
+  + la sesion debe ser mantenida por el front, debe poner un timer y dos minutos antes de que termine refrescarla.
 
 
 TODO.:
