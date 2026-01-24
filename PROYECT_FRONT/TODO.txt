@@ -42,3 +42,6 @@ TODO.:
 
 PLANING.:
 
+para refresh statefull->
+* envia el paquete cargando el user_id y el aes(iv,aes(cyphered)) y el JWT.
+* recibe mensaje cifrado con la aes vieja y dentro de el va a tener la aes nueva.
