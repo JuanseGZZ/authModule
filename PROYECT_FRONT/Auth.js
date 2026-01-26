@@ -25,11 +25,11 @@ export function logout(){
 }
 
 export function sendStateful(url,packet){
-  // hay que hacer y testear estas
+  // hay que hacer y testear esta
 }
 
 export function sendStateless(url,packet){
-  // hay que hacer y testear estas
+  // hay que hacer y testear esta
 }
 
 
@@ -58,7 +58,28 @@ export function sendStateless(url,packet){
     password:password,
     aeskey
   });
-
   console.log("LOGIN DEC:", login);
   setSessionFromDecoded(login)
+
+  let session = getSessionOrNull();
+  let aes = session.aes;
+  let userid = session.user_id;
+  let acces = session.access_token;
+  let refreshToken = session.refresh_token;
+
+  console.log(session);
+  console.log(aes);
+  
+
+  const refresh = await auth.refreshStateful({
+    user_id: userid,
+    aes_old: aes,
+    refresh_token: refreshToken,
+    access_token: acces,
+    data: {},
+    files: []
+  });
+  console.log("REFRESH DEC:", refresh);
+
+
 })();
