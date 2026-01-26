@@ -80,15 +80,12 @@ export class AuthService {
     return dec;
   }
 
-  async refreshStateful({ user_id, aes_old, refresh_token, access_token, data = {}, files = [] }) {
+  async refreshStateful({ user_id, aes_old, refresh_token}) {
     // stateful: el back espera AES vieja, y compara dec.aes con aes_old
     const pkt = new Packet({
       refresh_token,
-      access_token,
-      data,
       aes_key: aes_old,
-      user_id,
-      files
+      user_id
     });
 
     const enc = await pkt.encryptAES();
@@ -97,12 +94,10 @@ export class AuthService {
     return respDec;
   }
 
-  async refreshStateless({ aeskey, refresh_token, access_token, data = {}, files = [] }) {
+  async refreshStateless({ aeskey, refresh_token }) {
     const enc = await this._encryptPayloadOnly({
       aeskey,
       refresh_token,
-      access_token,
-      data
     });
 
     const aesRsa = await this._rsaEncryptJsonB64u({ aeskey });
@@ -114,37 +109,27 @@ export class AuthService {
       aes: { ciphertext: aesRsa }
     };
 
-    if (files && files.length) body.files = files; // solo si tu back lo soporta en refresh stateless
     const respEnc = await refreshFetch(body);
-
-    // en respuestas, el back normalmente responde Packet.encriptAES (incluye aes AES-en-AES)
-    // asi que se puede descifrar directo con Packet.decryptAES.
     const respDec = await Packet.decryptAES(respEnc, aeskey);
     return respDec;
   }
 
-  async unloginStateful({ user_id, aes_old, refresh_token, access_token, data = {}, files = [] }) {
+  async unloginStateful({ user_id, aes_old, refresh_token}) {
     const pkt = new Packet({
       refresh_token,
-      access_token,
-      data,
       aes_key: aes_old,
-      user_id,
-      files
+      user_id
     });
 
     const enc = await pkt.encryptAES();
-    const respEnc = await unloginFetch(enc);
-    const respDec = await Packet.decryptAES(respEnc, aes_old);
-    return respDec;
+    const rsp = await unloginFetch(enc);
+    return rsp;
   }
 
-  async unloginStateless({ aeskey, refresh_token, access_token, data = {}, files = [] }) {
+  async unloginStateless({ aeskey, refresh_token}) {
     const enc = await this._encryptPayloadOnly({
       aeskey,
       refresh_token,
-      access_token,
-      data
     });
 
     const aesRsa = await this._rsaEncryptJsonB64u({ aeskey });
@@ -156,10 +141,8 @@ export class AuthService {
       aes: { ciphertext: aesRsa }
     };
 
-    if (files && files.length) body.files = files;
-    const respEnc = await unloginFetch(body);
-    const respDec = await Packet.decryptAES(respEnc, aeskey);
-    return respDec;
+    const rsp = await unloginFetch(body);
+    return rsp;
   }
 
   // =========================

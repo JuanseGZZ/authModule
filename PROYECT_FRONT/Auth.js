@@ -24,7 +24,7 @@ export function logout(){
   auth.unloginStateless();
 }
 
-export function sendStateful(url,packet){
+export function sendStateful(url,data,files){ // puedo pasarlo a esta asi envian facil data:dict y files:binary[]
   // hay que hacer y testear esta
 }
 
@@ -61,6 +61,8 @@ export function sendStateless(url,packet){
   console.log("LOGIN DEC:", login);
   setSessionFromDecoded(login)
 
+  alert("wait para ver");
+
   let session = getSessionOrNull();
   let aes = session.aes;
   let userid = session.user_id;
@@ -80,6 +82,24 @@ export function sendStateless(url,packet){
     files: []
   });
   console.log("REFRESH DEC:", refresh);
+  setSessionFromDecoded(refresh)
 
+  session = getSessionOrNull();
+  aes = session.aes;
+  console.log("aes: "+aes);
+  userid = session.user_id;
+  acces = session.access_token;
+  refreshToken = session.refresh_token;
+
+
+  const unlog = await auth.unloginStateful({
+    user_id: userid,
+    aes_old: aes,
+    refresh_token: refreshToken,
+    access_token: acces,
+    data: {},
+    files: []
+  });
+  console.log(unlog);
 
 })();
