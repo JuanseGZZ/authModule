@@ -10,7 +10,7 @@
 < voy a hacer un server kms directamente, y por el momento si quieren que una instancia sea kms lo ejecuten, tambien me va a servir para testear >
 - Hacer funcs que consuman las apis del que este en modo KMS con la ip nomas, para el resto de instnacias. DONE
 
-- Agregar una logica al role del AT
+- Agregar una logica al role del AT <-------------------------- IMPORTANTE Y FALTA.
 - Hacer apis heredables de authapi.py DONE
 - Hacer main fastapi para que herede y escuche esas apis. DONE
 - Hacer apis custom en ese main para usar las funciones del framework. DONE

@@ -1,0 +1,3 @@
+- Agregar un selector entre valido para moviles y hacer que en web use el refresh token como httponly y en movile el E2E.
+- Agregar que se pueda usar web sockets.
+- Agregar que se puedan usar sockets.
