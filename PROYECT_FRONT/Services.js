@@ -3,7 +3,7 @@
 // login, register, unlogin, sendStateless, sendStateful.
 
 // Services.js
-import { Packet } from "./Modules.js";
+import { Packet } from "./ModelPacket.js";
 import { b64uEncode } from "./crypto/Base64Url.js";
 import { aesGcmEncrypt } from "./crypto/AESGCM.js";
 

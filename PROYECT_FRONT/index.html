@@ -1,17 +1,381 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Panel de pruebas Auth</title>
     <style>
-        body{
-            background-color: black;
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #eee;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-top: 0;
+            text-align: center;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .card {
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px 12px 14px 12px;
+        }
+
+        .card h2 {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            margin-top: 6px;
+            margin-bottom: 2px;
+        }
+
+        input, textarea {
+            width: 100%;
+            background: #181818;
+            border: 1px solid #444;
+            border-radius: 4px;
+            color: #eee;
+            padding: 6px 8px;
+            font-size: 13px;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 70px;
+        }
+
+        button {
+            margin-top: 8px;
+            padding: 6px 10px;
+            font-size: 13px;
+            background: #1976d2;
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1e88e5;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: default;
+        }
+
+        .log {
+            background: #050505;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 8px;
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .log-header span {
+            font-size: 13px;
+        }
+
+        .log-output {
+            background: #000;
+            border-radius: 4px;
+            padding: 8px;
+            font-family: "JetBrains Mono", "Fira Code", monospace;
+            font-size: 12px;
+            max-height: 260px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .badge {
+            font-size: 11px;
+            padding: 1px 6px;
+            border-radius: 999px;
+            border: 1px solid #555;
+            color: #bbb;
+        }
+
+        .badge-ok {
+            border-color: #2e7d32;
+            color: #66bb6a;
+        }
+
+        .badge-error {
+            border-color: #c62828;
+            color: #ef5350;
         }
     </style>
 </head>
 <body>
-    
-    <script type="module" src="./Auth.js"></script>
+<div class="container">
+    <h1>Panel de pruebas Auth</h1>
+
+    <div class="grid">
+        <!-- REGISTER -->
+        <div class="card">
+            <h2>Register</h2>
+            <label for="reg-username">User</label>
+            <input id="reg-username" placeholder="usuario">
+
+            <label for="reg-email">Email</label>
+            <input id="reg-email" type="email" placeholder="email">
+
+            <label for="reg-password">Password</label>
+            <input id="reg-password" type="password" placeholder="password">
+
+            <button id="btn-register">Probar register()</button>
+        </div>
+
+        <!-- LOGIN -->
+        <div class="card">
+            <h2>Login</h2>
+            <label for="login-username">User</label>
+            <input id="login-username" placeholder="usuario">
+
+            <label for="login-email">Email (opcional)</label>
+            <input id="login-email" type="email" placeholder="email (opcional)">
+
+            <label for="login-password">Password</label>
+            <input id="login-password" type="password" placeholder="password">
+
+            <button id="btn-login">Probar login()</button>
+        </div>
+
+        <!-- UNLOGIN -->
+        <div class="card">
+            <h2>Unlogin</h2>
+            <p style="font-size: 13px; margin: 0 0 6px 0;">
+                Llama a <code>unlogin()</code> con el contexto de sesion actual.
+            </p>
+            <button id="btn-unlogin">Probar unlogin()</button>
+        </div>
+
+        <!-- SEND STATELESS -->
+        <div class="card">
+            <h2>sendStateless</h2>
+            <label for="stateless-url">URL</label>
+            <input id="stateless-url" placeholder="https://api.ejemplo.com/endpoint">
+
+            <label for="stateless-packet">Packet (JSON)</label>
+            <textarea id="stateless-packet" placeholder='{"foo": "bar"}'></textarea>
+
+            <button id="btn-stateless">Probar sendStateless()</button>
+        </div>
+
+        <!-- SEND STATEFUL -->
+        <div class="card">
+            <h2>sendStateful</h2>
+            <label for="stateful-url">URL</label>
+            <input id="stateful-url" placeholder="https://api.ejemplo.com/endpoint">
+
+            <label for="stateful-packet">Packet (JSON)</label>
+            <textarea id="stateful-packet" placeholder='{"foo": "bar"}'></textarea>
+
+            <button id="btn-stateful">Probar sendStateful()</button>
+        </div>
+    </div>
+
+    <div class="log">
+        <div class="log-header">
+            <span>Salida</span>
+            <div>
+                <span id="status-badge" class="badge">idle</span>
+                <button id="btn-clear-log" style="margin-left: 8px; background:#424242;">
+                    Limpiar log
+                </button>
+            </div>
+        </div>
+        <div id="log-output" class="log-output"></div>
+    </div>
+</div>
+
+<script type="module">
+    // Asumiendo que en Auth.js tenes algo asi como:
+    //   export const auth = new AuthService();
+    // y que auth.register, auth.login, etc devuelven Promises.
+    //
+    // Si en tu caso son funciones sueltas (register, login, etc),
+    // cambiá la linea de import y las llamadas mas abajo.
+
+    import { auth } from "./Auth.js";
+
+    const logOutput = document.getElementById("log-output");
+    const statusBadge = document.getElementById("status-badge");
+
+    function setStatus(text, type = "idle") {
+        statusBadge.textContent = text;
+        statusBadge.classList.remove("badge-ok", "badge-error");
+        if (type === "ok") statusBadge.classList.add("badge-ok");
+        if (type === "error") statusBadge.classList.add("badge-error");
+    }
+
+    function appendLog(label, data, isError = false) {
+        const time = new Date().toLocaleTimeString();
+        const prefix = isError ? "[ERROR]" : "[OK]";
+        const json = (data !== undefined)
+            ? JSON.stringify(data, null, 2)
+            : "(sin payload)";
+
+        const block =
+            time + " " + prefix + " " + label + "\n" +
+            json + "\n" +
+            "----------------------------------------\n";
+
+        logOutput.textContent = block + logOutput.textContent;
+    }
+
+    function parseJsonOrNull(text) {
+        if (!text.trim()) return null;
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            appendLog("Parse JSON", { error: "JSON invalido", raw: text }, true);
+            throw e;
+        }
+    }
+
+    // REGISTER
+    document.getElementById("btn-register").addEventListener("click", async () => {
+        const user = document.getElementById("reg-username").value.trim();
+        const email = document.getElementById("reg-email").value.trim();
+        const password = document.getElementById("reg-password").value;
+
+        setStatus("register...");
+        try {
+            //const status = await auth.register(user, email, password);
+
+            appendLog("register(user,email,password)", status, false);
+            setStatus("register ok", "ok");
+        } catch (err) {
+            appendLog("register(user,email,password)", { message: String(err) }, true);
+            setStatus("register error", "error");
+        }
+    });
+
+    // LOGIN
+    document.getElementById("btn-login").addEventListener("click", async () => {
+        const user = document.getElementById("login-username").value.trim();
+        const email = document.getElementById("login-email").value.trim() || null;
+        const password = document.getElementById("login-password").value;
+
+        setStatus("login...");
+        try {
+            // email es opcional, si es null podrias decidir no pasarlo
+            //const status = await auth.login(user, email, password);
+            
+            appendLog("login(user,email?,password)", status, false);
+            setStatus("login ok", "ok");
+        } catch (err) {
+            appendLog("login(user,email?,password)", { message: String(err) }, true);
+            setStatus("login error", "error");
+        }
+    });
+
+    // UNLOGIN
+    document.getElementById("btn-unlogin").addEventListener("click", async () => {
+        setStatus("unlogin...");
+        try {
+            //const status = await auth.unlogin();
+            
+            appendLog("unlogin()", status, false);
+            setStatus("unlogin ok", "ok");
+        } catch (err) {
+            appendLog("unlogin()", { message: String(err) }, true);
+            setStatus("unlogin error", "error");
+        }
+    });
+
+    // sendStateless
+    document.getElementById("btn-stateless").addEventListener("click", async () => {
+        const url = document.getElementById("stateless-url").value.trim();
+        const packetText = document.getElementById("stateless-packet").value;
+        let packet;
+
+        try {
+            //packet = parseJsonOrNull(packetText);
+        } catch {
+            setStatus("JSON invalido", "error");
+            return;
+        }
+
+        setStatus("sendStateless...");
+        try {
+            //const resp = await auth.sendStateless(url, packet);
+            
+            appendLog("sendStateless(url,packet)", resp, false);
+            setStatus("sendStateless ok", "ok");
+        } catch (err) {
+            appendLog("sendStateless(url,packet)", { message: String(err) }, true);
+            setStatus("sendStateless error", "error");
+        }
+    });
+
+    // sendStateful
+    document.getElementById("btn-stateful").addEventListener("click", async () => {
+        const url = document.getElementById("stateful-url").value.trim();
+        const packetText = document.getElementById("stateful-packet").value;
+        let packet;
+
+        try {
+            //packet = parseJsonOrNull(packetText);
+        } catch {
+            setStatus("JSON invalido", "error");
+            return;
+        }
+
+        setStatus("sendStateful...");
+        try {
+            //const resp = await auth.sendStateful(url, packet);
+            
+            appendLog("sendStateful(url,packet)", resp, false);
+            setStatus("sendStateful ok", "ok");
+        } catch (err) {
+            appendLog("sendStateful(url,packet)", { message: String(err) }, true);
+            setStatus("sendStateful error", "error");
+        }
+    });
+
+    // Limpiar log
+    document.getElementById("btn-clear-log").addEventListener("click", () => {
+        logOutput.textContent = "";
+        setStatus("idle");
+    });
+</script>
 </body>
 </html>

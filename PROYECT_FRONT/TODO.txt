@@ -37,6 +37,7 @@ TODO.:
 * Agregar un StatefulTimeSession=10 // (minutos) [DONE]
 * Hacer una Class Session para mantener los datos de la sesiones de login y register.
 * Hacer un timer para el StatefulEnabled que lo comience el register y o el login.
+* Ver idas y llegadas por consola del refresh
 * Hace funciones SSF y SSL en auth.
 * Testear todo.
 
