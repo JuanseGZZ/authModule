@@ -72,14 +72,10 @@ export function sendStateless(url,packet){
   console.log(session);
   console.log(aes);
   
-
   const refresh = await auth.refreshStateful({
     user_id: userid,
     aes_old: aes,
     refresh_token: refreshToken,
-    access_token: acces,
-    data: {},
-    files: []
   });
   console.log("REFRESH DEC:", refresh);
   setSessionFromDecoded(refresh)
@@ -91,15 +87,13 @@ export function sendStateless(url,packet){
   acces = session.access_token;
   refreshToken = session.refresh_token;
 
-
   const unlog = await auth.unloginStateful({
     user_id: userid,
     aes_old: aes,
     refresh_token: refreshToken,
-    access_token: acces,
-    data: {},
-    files: []
   });
   console.log(unlog);
+
+  clearSession(refresh)
 
 })();
