@@ -41,9 +41,6 @@ export function sendStateless(url,packet){
   const email = "supertransman@hotmail.com";
   const username = email.split("@")[0];
   const password = "1234";
-  const passwordHash = await hashPassword(password);
-
-  console.log("PasswordHash: "+passwordHash)
 
   //console.log("Registrando:", { email, username, password });
 
