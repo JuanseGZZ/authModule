@@ -6,20 +6,34 @@ import { Session,getSessionOrNull,setSessionFromDecoded,clearSession } from "./M
 
 const auth = new AuthService();
 
-// funcion para hashear la password en el front
-async function hashPassword(password) {
-  const enc = new TextEncoder();
-  const data = enc.encode(password);
-
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray
-    .map(b => b.toString(16).padStart(2, "0"))
-    .join("");
-
-  return hashHex; // ej: "5e88489..."
+export function login(emailOrUsername, password, aeskey){
+  const session = auth.login(emailOrUsername, password, aeskey);
+  setSessionFromDecoded(session);
+  // falta iniciar el contador de autorefresh si es stateful
 }
 
+export function register(email, username, password, aeskey){
+  const session = auth.register(email, username, password, aeskey);
+  setSessionFromDecoded(session);
+  // falta iniciar el contador de autorefresh si es stateful
+}
+
+export function logout(){
+  // falta decidir cual usar dependiendo de conf en env
+  auth.unloginStateful();
+  auth.unloginStateless();
+}
+
+export function sendStateful(url,packet){
+  // hay que hacer y testear estas
+}
+
+export function sendStateless(url,packet){
+  // hay que hacer y testear estas
+}
+
+
+/* TESTING */ 
 (async () => {
   // AES "de prueba": en serio, en prod debe ser random y guardada por usuario/sesion.
   const aeskey = "12345678901234567890123456789012"; // 32 chars
