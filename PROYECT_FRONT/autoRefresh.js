@@ -28,6 +28,7 @@ export function startAutoRefresh() {
 }
 
 async function runRefresh() {
+  console.log("refrescando")
   if (refreshInFlight) return refreshInFlight;
 
   const s = getSessionOrNull();

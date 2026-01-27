@@ -88,6 +88,7 @@ export class AuthService {
 
     const enc = await pkt.encryptAES();
     const respEnc = await refreshFetch(enc);
+    console.log(respEnc);
     const respDec = await Packet.decryptAES(respEnc, aes_old);
     return respDec;
   }

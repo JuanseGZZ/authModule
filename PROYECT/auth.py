@@ -334,7 +334,7 @@ def refresh(request_json: Dict[str, Any]) -> Dict[str, Any]:
         # 4) Resolver email por refresh (JWT index) y validar refresh en JWT
         # Nota: esto asume que en tu sistema existe el index jwt_rt:{refresh} -> email.
         # Si lo resolves distinto, adapta esta parte.
-        
+        print(old_refresh)
         email = r.get(f"jwt_rt:{old_refresh}")
         if not email:
             return {"status": "error", "msg": "No existe sesion JWT asociada a este refresh_token"}
@@ -374,6 +374,7 @@ def refresh(request_json: Dict[str, Any]) -> Dict[str, Any]:
 
         # 10) Transportar AES nueva envuelta bajo AES vieja
         out["aes"] = _wrap_new_aes_under_old(old_aes=aes_old, new_aes=new_aes)
+
         return out
 
     # ============================================================
