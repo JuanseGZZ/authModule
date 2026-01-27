@@ -148,6 +148,7 @@ def login(request_json: Dict[str, Any]) -> Dict[str, str]:
     if not password or (not username and not email):
         raise ValueError("Faltan campos en el handshake (email/username o password)")
 
+
     # 3) Buscar usuario en DB y validar password
     user = UR.get_user(email=email, username=username, password=password)
     if user is None:

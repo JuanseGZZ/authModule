@@ -15,7 +15,7 @@ import { startAutoRefresh, stopAutoRefresh } from "./autoRefresh.js";
 
 const auth = new AuthService();
 
-export async function login(emailOrUsername, password) {
+export async function login(email, username, password) {
   // unlogeamos lo que haya si hay
   const s = getSessionOrNull();
   if (s) {
@@ -23,7 +23,8 @@ export async function login(emailOrUsername, password) {
   }
 
   const session = await auth.login({
-    emailOrUsername,
+    email,
+    username,
     password,
     aeskey: generateAES()
   });
@@ -62,13 +63,22 @@ export async function logout() {
 
   try {
     if (StatefulEnabled) {
-      return await auth.unloginStateful(s.user_id, s.aes, s.refresh_token);
+      return await auth.unloginStateful({
+        user_id: s.user_id,
+        aes_old: s.aes,
+        refresh_token: s.refresh_token
+      });
     }
-    return await auth.unloginStateless(s.aes, s.refresh_token);
+
+    return await auth.unloginStateless({
+      aeskey: s.aes,
+      refresh_token: s.refresh_token
+    });
   } finally {
     clearSession();
   }
 }
+
 
 
 export async function sendStateful(url, data, files) { // puedo pasarlo a esta asi envian facil data:dict y files:binary[]

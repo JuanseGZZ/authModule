@@ -63,13 +63,11 @@ export class AuthService {
     return dec;
   }
 
-  async login({ emailOrUsername, password, aeskey }) {
-    // el back acepta "username" y/o "email" (segun tu implementacion).
-    // mandamos ambos: si tiene "@", lo tratamos como email.
-    const isEmail = typeof emailOrUsername === "string" && emailOrUsername.includes("@");
+  async login({ email, username, password, aeskey }) {
+
     const payload = {
-      email: isEmail ? emailOrUsername : "",
-      username: isEmail ? "" : emailOrUsername,
+      email: typeof email === "string" ? email : "",
+      username: typeof username === "string" ? username : "",
       password,
       aeskey
     };

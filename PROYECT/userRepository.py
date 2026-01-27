@@ -136,6 +136,8 @@ class userRepository:
     
         email = email or ""
         username = username or ""
+
+        #print(username+ " " + str(email) + " " + password)
     
         with SessionLocal() as db:
         
@@ -169,6 +171,7 @@ class userRepository:
                         .all()
                 )
     
+                # esto no puede ser asi lo tengo que modificar
                 for u in all_users:
                     try:
                         aes_plain = kms.decifrarKey(u.aes_encripter)

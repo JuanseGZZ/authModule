@@ -19,6 +19,7 @@ problemas a resolver:
 - se puede generar sesiones que no se borran al desloguear si le simulas un metodo que no es el que usa
 - deberia no romper si no valida bien
 - Editar el login y register para que no encripten/desencripten todo con la rsa, sino que encripte una aes con la RSA del server. 
+- MODIFICAR LA BUSQUEDA POR MAIL DEL USER.
 
 facultades buscadas en la libreria:
 

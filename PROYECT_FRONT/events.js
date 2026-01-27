@@ -35,7 +35,7 @@ document.getElementById("btn-register").addEventListener("click", async () => {
 
     setStatus("register...");
     try {
-        const status = await register(user, email, password);
+        const status = await register(email,user, password);
 
         appendLog("register(user,email,password)", status, false);
         setStatus("register ok", "ok");
@@ -54,7 +54,7 @@ document.getElementById("btn-login").addEventListener("click", async () => {
     setStatus("login...");
     try {
         // email es opcional, si es null podrias decidir no pasarlo
-        const status = await login(user, password);
+        const status = await login(email,user, password);
 
         appendLog("login(user,email?,password)", status, false);
         setStatus("login ok", "ok");
