@@ -74,9 +74,10 @@ def test_pipeline_stateless(packet: Dict[str, Any] = Body(...)) -> Dict[str, Any
             # contenido en claro que quieras retornar
             "ok": True,
             "type": "stateless_pipeline",
-            "echo": dec,              # devolvemos lo que llego en claro
+            "data": dec,              # devolvemos lo que llego en claro
             "server_note": "roundtrip_ok",
         }
+
 
         # 3) Cypher al final
         resp_packet = auth.cyphStateLess(resp_dec)

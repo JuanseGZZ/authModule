@@ -79,16 +79,129 @@ export async function logout() {
   }
 }
 
+import { Packet } from "./ModelPacket.js";
 
+export async function sendStateful(url, data = {}, files = []) {
+  const activeSession = getSessionOrNull();
 
-export async function sendStateful(url, data, files) { // puedo pasarlo a esta asi envian facil data:dict y files:binary[]
-  // hay que hacer y testear esta
+  if (!activeSession) {
+    throw new Error("sendStateful: no hay sesion activa. Hace login/register primero.");
+  }
+
+  const statefulPacket = new Packet({
+    refresh_token: activeSession.refresh_token,
+    access_token: activeSession.access_token,
+    data: data || {},
+    aes_key: activeSession.aes,
+    user_id: activeSession.user_id,
+    files: files || []
+  });
+
+  const encryptedRequestPacket = await statefulPacket.encryptAES();
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(encryptedRequestPacket)
+  });
+
+  let encryptedResponsePacket;
+  try {
+    encryptedResponsePacket = await response.json();
+  } catch {
+    const text = await response.text();
+    throw new Error(`sendStateful: HTTP ${response.status}. Respuesta no JSON: ${text}`);
+  }
+
+  if (!response.ok) {
+    const errorMessage =
+      encryptedResponsePacket?.detail ||
+      encryptedResponsePacket?.error ||
+      encryptedResponsePacket?.message ||
+      `sendStateful: HTTP ${response.status}`;
+    throw new Error(errorMessage);
+  }
+
+  const decryptedResponse = await Packet.decryptAES(
+    encryptedResponsePacket,
+    activeSession.aes
+  );
+
+  return decryptedResponse;
 }
 
-export async function sendStateless(url, packet) {
-  // hay que hacer y testear esta
-}
+export async function sendStateless(url, data = {}, files = []) {
+  const activeSession = getSessionOrNull();
 
+  const perRequestAesKey = generateAES();
+
+  // payload cifrado con AES (refresh/access/data/files)
+  const encryptedPayloadOnly = await auth._encryptPayloadOnly({
+    aeskey: perRequestAesKey,
+    refresh_token: activeSession ? activeSession.refresh_token : "",
+    access_token: activeSession ? activeSession.access_token : "",
+    data: data || {}
+  });
+
+  // AES cifrada con RSA
+  const rsaEncryptedAesKey = await auth._rsaEncryptJsonB64u({ aeskey: perRequestAesKey });
+
+  // estructura stateless segun tu spec: aes siempre presente
+  const statelessRequestPacket = {
+    user_id: "0",
+    iv: encryptedPayloadOnly.iv,
+    ciphertext: encryptedPayloadOnly.ciphertext,
+    aes: {
+      iv: "AAAAAAAAAA",
+      ciphertext: rsaEncryptedAesKey
+    }
+  };
+
+  if (files && files.length > 0) {
+    statelessRequestPacket.files = await encryptFiles(files, perRequestAesKey);
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(statelessRequestPacket)
+  });
+
+  let encryptedResponsePacket;
+  try {
+    encryptedResponsePacket = await response.json();
+  } catch {
+    const text = await response.text();
+    throw new Error(`sendStateless: HTTP ${response.status}. Respuesta no JSON: ${text}`);
+  }
+
+  if (!response.ok) {
+    const errorMessage =
+      encryptedResponsePacket?.detail ||
+      encryptedResponsePacket?.error ||
+      encryptedResponsePacket?.message ||
+      `sendStateless: HTTP ${response.status}`;
+    throw new Error(errorMessage);
+  }
+
+  // Si el server responde stateless "aes" como RSA, NO es AES-en-AES. Lo sacamos antes de decryptAES.
+  const responsePacketForDecrypt = { ...encryptedResponsePacket };
+  if (
+    responsePacketForDecrypt.aes &&
+    typeof responsePacketForDecrypt.aes === "object" &&
+    responsePacketForDecrypt.aes.iv === "AAAAAAAAAA" &&
+    typeof responsePacketForDecrypt.aes.ciphertext === "string"
+  ) {
+    delete responsePacketForDecrypt.aes;
+  }
+
+  const decryptedResponse = await Packet.decryptAES(
+    responsePacketForDecrypt,
+    perRequestAesKey
+  );
+
+  return decryptedResponse;
+}
 
 /* TESTING */
 async function test() {

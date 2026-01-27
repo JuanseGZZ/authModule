@@ -165,10 +165,10 @@
         <!-- LOGIN -->
         <div class="card">
             <h2>Login</h2>
-            <label for="login-username">User</label>
-            <input id="login-username" placeholder="usuario">
+            <label for="login-username" style="display: none;">User</label>
+            <input id="login-username" style="display: none;" placeholder="usuario">
 
-            <label for="login-email">Email (opcional)</label>
+            <label for="login-email">Email</label>
             <input id="login-email" type="email" placeholder="email (opcional)">
 
             <label for="login-password">Password</label>
@@ -188,27 +188,36 @@
 
         <!-- SEND STATELESS -->
         <div class="card">
-            <h2>sendStateless</h2>
-            <label for="stateless-url">URL</label>
-            <input id="stateless-url" placeholder="https://api.ejemplo.com/endpoint">
-
-            <label for="stateless-packet">Packet (JSON)</label>
-            <textarea id="stateless-packet" placeholder='{"foo": "bar"}'></textarea>
-
-            <button id="btn-stateless">Probar sendStateless()</button>
+          <h2>sendStateless</h2>
+        
+          <label for="stateless-url">URL</label>
+          <input id="stateless-url" placeholder="https://api.ejemplo.com/endpoint">
+        
+          <label for="stateless-packet">Data (JSON)</label>
+          <textarea id="stateless-packet" placeholder='{"foo": "bar"}'></textarea>
+        
+          <label for="stateless-files">Files</label>
+          <input id="stateless-files" type="file" multiple>
+        
+          <button id="btn-stateless">Probar sendStateless()</button>
         </div>
-
+        
         <!-- SEND STATEFUL -->
         <div class="card">
-            <h2>sendStateful</h2>
-            <label for="stateful-url">URL</label>
-            <input id="stateful-url" placeholder="https://api.ejemplo.com/endpoint">
-
-            <label for="stateful-packet">Packet (JSON)</label>
-            <textarea id="stateful-packet" placeholder='{"foo": "bar"}'></textarea>
-
-            <button id="btn-stateful">Probar sendStateful()</button>
+          <h2>sendStateful</h2>
+        
+          <label for="stateful-url">URL</label>
+          <input id="stateful-url" placeholder="https://api.ejemplo.com/endpoint">
+        
+          <label for="stateful-packet">Data (JSON)</label>
+          <textarea id="stateful-packet" placeholder='{"foo": "bar"}'></textarea>
+        
+          <label for="stateful-files">Files</label>
+          <input id="stateful-files" type="file" multiple>
+        
+          <button id="btn-stateful">Probar sendStateful()</button>
         </div>
+        
     </div>
 
     <div class="log">

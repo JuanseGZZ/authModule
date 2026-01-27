@@ -78,55 +78,99 @@ document.getElementById("btn-unlogin").addEventListener("click", async () => {
     }
 });
 
-// sendStateless
+// helpers locales en events.js
+
+async function filesInputToPacketFiles(fileInput) {
+  const files = Array.from(fileInput.files || []);
+  const out = [];
+
+  for (const file of files) {
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+
+    out.push({
+      id: crypto.randomUUID(),
+      file_name: file.name,
+      mime: file.type || "application/octet-stream",
+      data_b64: btoa(binary)
+    });
+  }
+
+  return out;
+}
+
+import { sendStateful,sendStateless } from "./Auth.js";
+
+// ==============================
+// SEND STATELESS
+// ==============================
 document.getElementById("btn-stateless").addEventListener("click", async () => {
-    const url = document.getElementById("stateless-url").value.trim();
-    const packetText = document.getElementById("stateless-packet").value;
-    let packet;
+  const url = document.getElementById("stateless-url").value.trim();
+  const packetText = document.getElementById("stateless-packet").value;
+  const filesInput = document.getElementById("stateless-files");
 
-    try {
-        //packet = parseJsonOrNull(packetText);
-    } catch {
-        setStatus("JSON invalido", "error");
-        return;
-    }
+  let data;
+  try {
+    data = packetText ? JSON.parse(packetText) : {};
+  } catch {
+    setStatus("JSON invalido", "error");
+    return;
+  }
 
-    setStatus("sendStateless...");
-    try {
-        //const resp = await auth.sendStateless(url, packet);
+  setStatus("sendStateless...");
+  try {
+    const files = await filesInputToPacketFiles(filesInput);
+    const resp = await sendStateless(url, data, files);
 
-        appendLog("sendStateless(url,packet)", resp, false);
-        setStatus("sendStateless ok", "ok");
-    } catch (err) {
-        appendLog("sendStateless(url,packet)", { message: String(err) }, true);
-        setStatus("sendStateless error", "error");
-    }
+    appendLog("sendStateless(url,data,files)", resp, false);
+    setStatus("sendStateless ok", "ok");
+  } catch (err) {
+    appendLog(
+      "sendStateless(url,data,files)",
+      { message: String(err) },
+      true
+    );
+    setStatus("sendStateless error", "error");
+  }
 });
 
-// sendStateful
+// ==============================
+// SEND STATEFUL
+// ==============================
 document.getElementById("btn-stateful").addEventListener("click", async () => {
-    const url = document.getElementById("stateful-url").value.trim();
-    const packetText = document.getElementById("stateful-packet").value;
-    let packet;
+  const url = document.getElementById("stateful-url").value.trim();
+  const packetText = document.getElementById("stateful-packet").value;
+  const filesInput = document.getElementById("stateful-files");
 
-    try {
-        //packet = parseJsonOrNull(packetText);
-    } catch {
-        setStatus("JSON invalido", "error");
-        return;
-    }
+  let data;
+  try {
+    data = packetText ? JSON.parse(packetText) : {};
+  } catch {
+    setStatus("JSON invalido", "error");
+    return;
+  }
 
-    setStatus("sendStateful...");
-    try {
-        //const resp = await auth.sendStateful(url, packet);
+  setStatus("sendStateful...");
+  try {
+    const files = await filesInputToPacketFiles(filesInput);
+    const resp = await sendStateful(url, data, files);
 
-        appendLog("sendStateful(url,packet)", resp, false);
-        setStatus("sendStateful ok", "ok");
-    } catch (err) {
-        appendLog("sendStateful(url,packet)", { message: String(err) }, true);
-        setStatus("sendStateful error", "error");
-    }
+    appendLog("sendStateful(url,data,files)", resp, false);
+    setStatus("sendStateful ok", "ok");
+  } catch (err) {
+    appendLog(
+      "sendStateful(url,data,files)",
+      { message: String(err) },
+      true
+    );
+    setStatus("sendStateful error", "error");
+  }
 });
+
 
 // Limpiar log
 document.getElementById("btn-clear-log").addEventListener("click", () => {
