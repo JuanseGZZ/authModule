@@ -3,32 +3,43 @@
 // Auth.js
 import { AuthService } from "./Services.js";
 import { Session,getSessionOrNull,setSessionFromDecoded,clearSession } from "./ModelSession.js"
+import "./Env.js"
+import { StatefulEnabled } from "./Env.js";
 
 const auth = new AuthService();
 
-export function login(emailOrUsername, password, aeskey){
+export async function login(emailOrUsername, password, aeskey){
   const session = auth.login(emailOrUsername, password, aeskey);
   setSessionFromDecoded(session);
-  // falta iniciar el contador de autorefresh si es stateful
+  if (StatefulEnabled){
+    // falta iniciar el contador de autorefresh si es stateful
+  }
 }
 
-export function register(email, username, password, aeskey){
+export async function register(email, username, password, aeskey){
   const session = auth.register(email, username, password, aeskey);
   setSessionFromDecoded(session);
-  // falta iniciar el contador de autorefresh si es stateful
+  if (StatefulEnabled){
+    // falta iniciar el contador de autorefresh si es stateful
+  }
 }
 
-export function logout(){
+export async function logout(user_id,aes_old,refresh_token){
   // falta decidir cual usar dependiendo de conf en env
-  auth.unloginStateful();
-  auth.unloginStateless();
+  clearSession(getSessionOrNull());
+  if (StatefulEnabled){
+    console.log("stateful")
+    return auth.unloginStateful(user_id,aes_old,refresh_token);
+  }
+  console.log("stateless")
+  return auth.unloginStateless(aes_old,refresh_token);
 }
 
-export function sendStateful(url,data,files){ // puedo pasarlo a esta asi envian facil data:dict y files:binary[]
+export async function sendStateful(url,data,files){ // puedo pasarlo a esta asi envian facil data:dict y files:binary[]
   // hay que hacer y testear esta
 }
 
-export function sendStateless(url,packet){
+export async function sendStateless(url,packet){
   // hay que hacer y testear esta
 }
 
@@ -75,7 +86,7 @@ export function sendStateless(url,packet){
   const refresh = await auth.refreshStateful({
     user_id: userid,
     aes_old: aes,
-    refresh_token: refreshToken,
+    refresh_token: refreshToken
   });
   console.log("REFRESH DEC:", refresh);
   setSessionFromDecoded(refresh)
@@ -87,7 +98,7 @@ export function sendStateless(url,packet){
   acces = session.access_token;
   refreshToken = session.refresh_token;
 
-  const unlog = await auth.unloginStateful({
+  const unlog = await logout({
     user_id: userid,
     aes_old: aes,
     refresh_token: refreshToken,
