@@ -121,7 +121,7 @@ def test_pipeline_stateful(packet: Dict[str, Any] = Body(...)) -> Dict[str, Any]
 
             "ok": True,
             "type": "stateful_pipeline",
-            "echo": dec,
+            "data": dec,
             "server_note": "roundtrip_ok",
         }
 
