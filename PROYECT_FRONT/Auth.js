@@ -1,51 +1,87 @@
 // este va a llevar todo el core de la app
 
+function generateAES() {
+  const arr = new Uint8Array(32);
+  crypto.getRandomValues(arr);
+  return btoa(String.fromCharCode(...arr));
+}
+
 // Auth.js
 import { AuthService } from "./Services.js";
-import { Session,getSessionOrNull,setSessionFromDecoded,clearSession } from "./ModelSession.js"
+import { Session, getSessionOrNull, setSessionFromDecoded, clearSession } from "./ModelSession.js"
 import "./Env.js"
 import { StatefulEnabled } from "./Env.js";
+import { startAutoRefresh, stopAutoRefresh } from "./autoRefresh.js";
 
 const auth = new AuthService();
 
-export async function login(emailOrUsername, password, aeskey){
-  const session = auth.login(emailOrUsername, password, aeskey);
+export async function login(emailOrUsername, password) {
+  // unlogeamos lo que haya si hay
+  const s = getSessionOrNull();
+  if (s) {
+    logout();
+  }
+
+  const session = await auth.login({
+    emailOrUsername,
+    password,
+    aeskey: generateAES()
+  });
   setSessionFromDecoded(session);
-  if (StatefulEnabled){
-    // falta iniciar el contador de autorefresh si es stateful
+  if (StatefulEnabled) {
+    // iniciar el contador de autorefresh si es stateful
+    startAutoRefresh();
   }
 }
 
-export async function register(email, username, password, aeskey){
-  const session = auth.register(email, username, password, aeskey);
+export async function register(email, username, password) {
+  // unlogeamos lo que haya si hay
+  const s = getSessionOrNull();
+  if (s) {
+    logout();
+  }
+
+  const session = await auth.register({
+    email,
+    username,
+    password,
+    aeskey: generateAES()
+  });
   setSessionFromDecoded(session);
-  if (StatefulEnabled){
-    // falta iniciar el contador de autorefresh si es stateful
+  if (StatefulEnabled) {
+    // iniciar el contador de autorefresh si es stateful
+    startAutoRefresh();
   }
 }
 
-export async function logout(user_id,aes_old,refresh_token){
-  // falta decidir cual usar dependiendo de conf en env
-  clearSession(getSessionOrNull());
-  if (StatefulEnabled){
-    console.log("stateful")
-    return auth.unloginStateful(user_id,aes_old,refresh_token);
+export async function logout() {
+  const s = getSessionOrNull();
+  if (!s) return false;
+
+  stopAutoRefresh();
+
+  try {
+    if (StatefulEnabled) {
+      return await auth.unloginStateful(s.user_id, s.aes, s.refresh_token);
+    }
+    return await auth.unloginStateless(s.aes, s.refresh_token);
+  } finally {
+    clearSession();
   }
-  console.log("stateless")
-  return auth.unloginStateless(aes_old,refresh_token);
 }
 
-export async function sendStateful(url,data,files){ // puedo pasarlo a esta asi envian facil data:dict y files:binary[]
+
+export async function sendStateful(url, data, files) { // puedo pasarlo a esta asi envian facil data:dict y files:binary[]
   // hay que hacer y testear esta
 }
 
-export async function sendStateless(url,packet){
+export async function sendStateless(url, packet) {
   // hay que hacer y testear esta
 }
 
 
-/* TESTING */ 
-(async () => {
+/* TESTING */
+async function test() {
   // AES "de prueba": en serio, en prod debe ser random y guardada por usuario/sesion.
   const aeskey = "12345678901234567890123456789012"; // 32 chars
 
@@ -61,12 +97,12 @@ export async function sendStateless(url,packet){
   //  password,
   //  aeskey
   //});
-//
+
   //console.log("REGISTER DEC:", reg);
 
   const login = await auth.login({
     emailOrUsername: email,
-    password:password,
+    password: password,
     aeskey
   });
   console.log("LOGIN DEC:", login);
@@ -82,7 +118,7 @@ export async function sendStateless(url,packet){
 
   console.log(session);
   console.log(aes);
-  
+
   const refresh = await auth.refreshStateful({
     user_id: userid,
     aes_old: aes,
@@ -93,7 +129,7 @@ export async function sendStateless(url,packet){
 
   session = getSessionOrNull();
   aes = session.aes;
-  console.log("aes: "+aes);
+  console.log("aes: " + aes);
   userid = session.user_id;
   acces = session.access_token;
   refreshToken = session.refresh_token;
@@ -106,5 +142,4 @@ export async function sendStateless(url,packet){
   console.log(unlog);
 
   clearSession(refresh)
-
-})();
+};
