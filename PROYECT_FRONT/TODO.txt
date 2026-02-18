@@ -35,10 +35,10 @@ auth.js de trasfondo va a llevar:
 TODO.:
 * Agregar un StatefulEnabled=true // para que el FW verifique si esta o no habilitado a usar, y mantener en local los tiempos para la sesion. [DONE]
 * Agregar un StatefulTimeSession=10 // (minutos) [DONE]
-* Hacer una Class Session para mantener los datos de la sesiones de login y register.
-* Hacer un timer para el StatefulEnabled que lo comience el register y o el login.
+* Hacer una Class Session para mantener los datos de la sesiones de login y register.[DONE]
+* Hacer un timer para el StatefulEnabled que lo comience el register y o el login.[DONE]
 * Ver idas y llegadas por consola del refresh
-* Hace funciones SSF y SSL en auth.
+* Hace funciones SSF y SSL en auth. 
 * Testear todo.
 
 PLANING.:

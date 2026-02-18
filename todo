@@ -19,7 +19,7 @@ problemas a resolver:
 - se puede generar sesiones que no se borran al desloguear si le simulas un metodo que no es el que usa
 - deberia no romper si no valida bien
 - Editar el login y register para que no encripten/desencripten todo con la rsa, sino que encripte una aes con la RSA del server. 
-- MODIFICAR LA BUSQUEDA POR MAIL DEL USER. ( se me ocurre buscar por macheo de clave y despues verificar si el mail coincide ) (otra idea puede ser al crearlo antes de cifrarlo hacer un slot mas en la db que sea un hash del mail, asi cualdo se logean hashea eso y compara con hash, y esto a su vez es irrevercible).
+- MODIFICAR LA BUSQUEDA POR MAIL DEL USER. ( se me ocurre buscar por macheo de clave y despues verificar si el mail coincide ) (otra idea puede ser al crearlo antes de cifrarlo hacer un slot mas en la db que sea un hash del mail, asi cualdo se logean hashea eso y compara con hash, y esto a su vez es irrevercible). <-------------------------- IMPORTANTE Y FALTA.
 
 facultades buscadas en la libreria:
 
