@@ -10,3 +10,17 @@ tiene que.
 - guardar las variables en sitios seguros.
 
 
+
+Documentacion:
+
+En auth.js tenemos funciones heredables:
+funcs:
+- login(email, username, password)
+- register(email, username, password) 
+- logout()
+- sendStateful(url, data = {}, files = []) -> json
+- sendStateless(url, data = {}, files = []) -> json
+
+En Env.js vamos a tener la variables/configuraciones necesarias para el FW.
+Va a haber una url para el sistema de auth, o sea las funcs login,register y logout.
+Lo que es las funciones sends se les va a pasar URL completa por si es otra URL el back.
